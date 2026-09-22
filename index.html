@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>СтройДом — демо-лендинг</title>
+<meta name="description" content="Демо-лендинг ремонтно-строительной компании для портфолио вайб-кодера">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #0B1E3A;
+    --bg-raised: #10274A;
+    --bg-deep: #071427;
+    --grid-line: rgba(143, 211, 255, 0.09);
+    --line: #4C7FB3;
+    --line-bright: #8FD3FF;
+    --ink: #EAF6FF;
+    --ink-muted: #93AECD;
+    --accent: #FF7A29;
+    --accent-ink: #0B1E3A;
+    --border: rgba(143, 211, 255, 0.18);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background:
+      repeating-linear-gradient(0deg, var(--grid-line) 0 1px, transparent 1px 32px),
+      repeating-linear-gradient(90deg, var(--grid-line) 0 1px, transparent 1px 32px),
+      var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; text-decoration: none; }
+  h1, h2 {
+    font-family: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
+    text-transform: uppercase; font-weight: 700; text-wrap: balance; margin: 0;
+    letter-spacing: 0.01em;
+  }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+  .wrap { max-width: 1140px; margin: 0 auto; padding-inline: 24px; }
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent); font-weight: 500;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; padding: 15px 26px; border-radius: 2px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 500;
+    white-space: nowrap; transition: transform 0.15s ease, box-shadow 0.2s ease;
+    will-change: transform;
+  }
+  .btn-solid { background: var(--accent); color: var(--accent-ink); }
+  .btn-solid:hover { box-shadow: 0 0 0 3px rgba(255,122,41,0.25); }
+  .btn-outline { border: 1px solid var(--line); color: var(--ink); }
+  .btn-outline:hover { border-color: var(--line-bright); color: var(--line-bright); }
+
+  nav {
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; background: rgba(11,30,58,0.86);
+    backdrop-filter: blur(8px); z-index: 20;
+  }
+  .nav-row { display: flex; align-items: center; justify-content: space-between; padding-block: 18px; gap: 16px; flex-wrap: wrap; }
+  .logo { font-family: 'Big Shoulders Display', sans-serif; font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; }
+  .logo::before { content: '// '; color: var(--accent); }
+  .nav-links { display: flex; gap: 30px; font-size: 14px; }
+  .nav-links a { position: relative; padding-bottom: 4px; }
+  .nav-links a::after {
+    content: ''; position: absolute; left: 50%; right: 50%; bottom: 0; height: 1px;
+    background: var(--line-bright); transition: left 0.2s ease, right 0.2s ease;
+  }
+  .nav-links a:hover::after { left: 0; right: 0; }
+  @media (max-width: 760px) { .nav-links { display: none; } }
+
+  /* SITE-WIDE CURSOR SPOTLIGHT */
+  .site-spot {
+    position: fixed; inset: 0; pointer-events: none; z-index: 500; opacity: 0;
+    background: radial-gradient(460px circle at var(--sx, 50%) var(--sy, 30%), rgba(255,122,41,0.16), transparent 62%);
+    transition: opacity 0.4s ease; mix-blend-mode: screen;
+  }
+  .site-spot.is-active { opacity: 1; }
+
+  /* HERO */
+  .hero { position: relative; padding-block: 64px 40px; overflow: hidden; }
+  .hero-row { position: relative; display: flex; gap: 48px; align-items: center; flex-wrap: wrap; }
+  .hero-copy { flex: 1 1 420px; display: flex; flex-direction: column; gap: 22px; }
+  .hero h1 { font-size: clamp(34px, 5vw, 58px); line-height: 1.02; opacity: 0; animation: rise 0.7s 0.1s cubic-bezier(.2,.8,.2,1) forwards; }
+  .hero .eyebrow { opacity: 0; animation: rise 0.6s cubic-bezier(.2,.8,.2,1) forwards; }
+  .hero p { font-size: 17px; line-height: 1.6; color: var(--ink-muted); max-width: 440px; opacity: 0; animation: rise 0.7s 0.22s cubic-bezier(.2,.8,.2,1) forwards; }
+  .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; opacity: 0; animation: rise 0.7s 0.32s cubic-bezier(.2,.8,.2,1) forwards; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+  .blueprint-frame {
+    flex: 1 1 400px; min-width: 0; aspect-ratio: 4 / 3; border: 1px solid var(--border);
+    border-radius: 4px; background: var(--bg-deep); position: relative; overflow: hidden; cursor: crosshair;
+  }
+  .xhair-v, .xhair-h { position: absolute; background: rgba(143,211,255,0.32); opacity: 0; transition: opacity 0.15s ease; pointer-events: none; }
+  .xhair-v { top: 0; bottom: 0; width: 1px; }
+  .xhair-h { left: 0; right: 0; height: 1px; }
+  .xhair-label {
+    position: absolute; font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--line-bright);
+    background: rgba(7,20,39,0.88); padding: 2px 6px; border: 1px solid var(--border); border-radius: 2px;
+    opacity: 0; transition: opacity 0.15s ease; pointer-events: none; white-space: nowrap; transform: translate(10px, 10px);
+  }
+  .blueprint-frame svg { width: 100%; height: 100%; display: block; }
+  .draw-path { stroke-dasharray: var(--len, 1000); stroke-dashoffset: var(--len, 1000); animation: draw 1.8s 0.3s ease forwards; }
+  .draw-path.d2 { animation-delay: 0.6s; }
+  .draw-path.d3 { animation-delay: 0.9s; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  .dim-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; fill: var(--line-bright); opacity: 0; animation: fadein 0.4s 1.6s ease forwards; }
+  .corner-tick { position: absolute; width: 14px; height: 14px; border: 1px solid var(--line-bright); opacity: 0.6; }
+  .corner-tick.tl { top: 10px; left: 10px; border-right: none; border-bottom: none; }
+  .corner-tick.tr { top: 10px; right: 10px; border-left: none; border-bottom: none; }
+  .corner-tick.bl { bottom: 10px; left: 10px; border-right: none; border-top: none; }
+  .corner-tick.br { bottom: 10px; right: 10px; border-left: none; border-top: none; }
+  @keyframes fadein { to { opacity: 1; } }
+
+  /* STATS */
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--border); border-block: 1px solid var(--border); }
+  .stat { background: var(--bg); padding: 26px 20px; }
+  @media (max-width: 620px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .stat-num { font-family: 'Big Shoulders Display', sans-serif; font-size: 36px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--line-bright); }
+  .stat-label { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-muted); margin-top: 4px; }
+
+  section { padding-block: 84px; }
+  .section-head { display: flex; flex-direction: column; gap: 10px; max-width: 560px; margin-bottom: 44px; }
+  .section-head h2 { font-size: clamp(28px, 3.4vw, 38px); }
+
+  .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  .reveal.in-view { opacity: 1; transform: translateY(0); }
+
+  /* SERVICES */
+  .services-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); }
+  @media (max-width: 900px) { .services-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 500px) { .services-grid { grid-template-columns: 1fr; } }
+  .service-card {
+    background: var(--bg); padding: 26px 22px; display: flex; flex-direction: column; gap: 12px;
+    transform: perspective(600px) rotateX(0deg) rotateY(0deg); transition: transform 0.2s ease, background 0.2s ease;
+    will-change: transform;
+  }
+  .service-card:hover { background: var(--bg-raised); }
+  .service-num { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--accent); }
+  .service-title { font-size: 16px; font-weight: 600; }
+  .service-desc { font-size: 14px; line-height: 1.5; color: var(--ink-muted); }
+
+  /* PROCESS */
+  .process-track { position: relative; }
+  .process-line {
+    position: absolute; top: 7px; left: 0; right: 0; height: 1px; background: var(--border);
+  }
+  .process-line-fill {
+    position: absolute; top: 0; left: 0; height: 1px; background: var(--line-bright);
+    width: 0%; transition: width 1.4s ease;
+  }
+  .process-line-fill.in-view { width: 100%; }
+  .process-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; position: relative; padding-top: 28px; }
+  @media (max-width: 720px) { .process-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .process-step { display: flex; flex-direction: column; gap: 8px; }
+  .step-dot {
+    width: 15px; height: 15px; border-radius: 50%; background: var(--bg); border: 1px solid var(--line);
+    margin-bottom: 6px; transition: background 0.3s ease, border-color 0.3s ease;
+  }
+  .process-step.in-view .step-dot { background: var(--accent); border-color: var(--accent); }
+  .step-num { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-muted); }
+  .step-title { font-size: 16px; font-weight: 600; }
+  .step-desc { font-size: 14px; line-height: 1.5; color: var(--ink-muted); }
+
+  /* TESTIMONIAL */
+  .testimonial { display: flex; gap: 48px; align-items: center; flex-wrap: wrap; }
+  .testimonial-frame { flex: 1 1 380px; min-width: 0; aspect-ratio: 4 / 3; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-deep); position: relative; overflow: hidden; cursor: crosshair; }
+  .testimonial-frame svg { width: 100%; height: 100%; display: block; }
+  .testimonial-copy { flex: 1 1 380px; display: flex; flex-direction: column; gap: 18px; }
+  .testimonial-quote { font-family: 'Big Shoulders Display', sans-serif; font-size: 26px; line-height: 1.25; font-weight: 600; text-transform: none; text-wrap: balance; }
+  .testimonial-name { font-size: 15px; font-weight: 600; }
+  .testimonial-meta { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--ink-muted); }
+
+  /* CALCULATOR */
+  .calc-panel {
+    display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 1px; background: var(--border);
+    border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+  }
+  @media (max-width: 760px) { .calc-panel { grid-template-columns: 1fr; } }
+  .calc-controls { background: var(--bg); padding: 36px; display: flex; flex-direction: column; gap: 32px; }
+  .calc-result { background: var(--bg-deep); padding: 36px; display: flex; flex-direction: column; justify-content: center; gap: 18px; }
+  .calc-row-label { display: flex; align-items: baseline; justify-content: space-between; font-size: 14px; margin-bottom: 12px; }
+  .calc-row-label .val { font-family: 'IBM Plex Mono', monospace; color: var(--line-bright); font-size: 15px; }
+
+  .ruler-slider { width: 100%; height: 28px; -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }
+  .ruler-slider::-webkit-slider-runnable-track {
+    height: 20px; border: 1px solid var(--border); border-radius: 2px;
+    background:
+      repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 10%),
+      var(--bg-deep);
+  }
+  .ruler-slider::-moz-range-track {
+    height: 20px; border: 1px solid var(--border); border-radius: 2px;
+    background:
+      repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 10%),
+      var(--bg-deep);
+  }
+  .ruler-slider::-webkit-slider-thumb {
+    -webkit-appearance: none; margin-top: -5px; width: 12px; height: 30px; border-radius: 1px;
+    background: var(--accent); border: none; box-shadow: 0 0 0 3px rgba(255,122,41,0.2);
+  }
+  .ruler-slider::-moz-range-thumb {
+    width: 12px; height: 30px; border-radius: 1px; background: var(--accent); border: none;
+    box-shadow: 0 0 0 3px rgba(255,122,41,0.2);
+  }
+
+  .pkg-tabs { display: flex; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 2px; overflow: hidden; }
+  .pkg-tab {
+    flex: 1; background: var(--bg); border: none; color: var(--ink-muted); font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px; padding: 12px 8px; cursor: pointer; transition: background 0.2s ease, color 0.2s ease;
+  }
+  .pkg-tab:hover { color: var(--ink); }
+  .pkg-tab.active { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+  .calc-eyebrow { font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-muted); }
+  .calc-price {
+    font-family: 'Big Shoulders Display', sans-serif; font-size: clamp(28px, 3.4vw, 42px); font-weight: 700;
+    color: var(--line-bright); font-variant-numeric: tabular-nums; line-height: 1.15;
+    display: flex; align-items: center; min-height: 2.3em;
+  }
+  .calc-formula { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--ink-muted); }
+  .calc-note { font-size: 13px; color: var(--ink-muted); line-height: 1.5; }
+
+  /* CTA */
+  .cta { background: var(--accent); color: var(--accent-ink); }
+  .cta-row { display: flex; align-items: center; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
+  .cta h2 { color: var(--accent-ink); }
+  .cta p { font-size: 15px; line-height: 1.6; max-width: 420px; }
+  .cta-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+  .cta .btn-solid { background: var(--accent-ink); color: var(--accent); }
+  .cta .btn-outline { border: 1px solid var(--accent-ink); color: var(--accent-ink); }
+
+  footer {
+    padding-block: 28px; border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--ink-muted);
+  }
+  footer .logo { font-size: 15px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+    .hero h1, .hero .eyebrow, .hero p, .hero-actions { opacity: 1; transform: none; }
+    .draw-path { stroke-dashoffset: 0; }
+    .dim-label { opacity: 1; }
+    .reveal { opacity: 1; transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap nav-row">
+    <div class="logo">СтройДом</div>
+    <div class="nav-links">
+      <a href="#services">Услуги</a>
+      <a href="#work">Проекты</a>
+      <a href="#process">Как мы работаем</a>
+      <a href="#contact">Контакты</a>
+    </div>
+    <a class="btn btn-solid magnetic" href="#contact">Оставить заявку</a>
+  </div>
+</nav>
+
+<div class="site-spot" id="siteSpot"></div>
+
+<div class="hero">
+  <div class="wrap hero-row">
+    <div class="hero-copy">
+      <div class="eyebrow">Ремонт и отделка под ключ</div>
+      <h1>Строим и ремонтируем дома, которым доверяют</h1>
+      <p>От дизайн-проекта до сдачи ключей — полный цикл работ с фиксированной сметой и гарантией 3 года на каждый объект.</p>
+      <div class="hero-actions">
+        <a class="btn btn-solid magnetic" href="#contact">Рассчитать смету</a>
+        <a class="btn btn-outline magnetic" href="#work">Смотреть проекты</a>
+      </div>
+    </div>
+    <div class="blueprint-frame">
+      <span class="corner-tick tl"></span><span class="corner-tick tr"></span>
+      <span class="corner-tick bl"></span><span class="corner-tick br"></span>
+      <svg viewBox="0 0 400 300" fill="none">
+        <path class="draw-path" style="--len:520" d="M60 220 L60 120 L200 40 L340 120 L340 220 Z" stroke="#8FD3FF" stroke-width="1.6"/>
+        <path class="draw-path d2" style="--len:220" d="M175 220 L175 150 L225 150 L225 220" stroke="#8FD3FF" stroke-width="1.4"/>
+        <path class="draw-path d2" style="--len:140" d="M95 170 L135 170 L135 200 L95 200 Z" stroke="#4C7FB3" stroke-width="1.2"/>
+        <path class="draw-path d3" style="--len:400" d="M40 240 L40 235 M40 220 L360 220 M360 235 L360 240" stroke="#4C7FB3" stroke-width="1"/>
+        <path class="draw-path d3" style="--len:120" d="M200 40 L200 20 M190 20 L210 20" stroke="#4C7FB3" stroke-width="1"/>
+        <text class="dim-label" x="165" y="252" text-anchor="middle">12,4 м</text>
+        <text class="dim-label" x="215" y="30" text-anchor="middle">H 6,8 м</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<div class="wrap stats">
+  <div class="stat">
+    <div class="stat-num" data-count="15" data-suffix=" лет">0</div>
+    <div class="stat-label">на рынке ремонта</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num" data-count="240" data-suffix="+">0</div>
+    <div class="stat-label">сданных объектов</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num" data-count="3" data-suffix=" года">0</div>
+    <div class="stat-label">гарантии на работы</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num" data-count="98" data-suffix="%">0</div>
+    <div class="stat-label">клиентов рекомендуют</div>
+  </div>
+</div>
+
+<section id="services">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="eyebrow">Услуги</div>
+      <h2>Полный цикл строительных работ</h2>
+    </div>
+    <div class="services-grid reveal">
+      <div class="service-card tilt">
+        <div class="service-num">01</div>
+        <div class="service-title">Дизайн-проект</div>
+        <div class="service-desc">Планировка, визуализация и подбор материалов под ваш бюджет.</div>
+      </div>
+      <div class="service-card tilt">
+        <div class="service-num">02</div>
+        <div class="service-title">Черновые работы</div>
+        <div class="service-desc">Стяжка, штукатурка, электрика и сантехника «под ключ».</div>
+      </div>
+      <div class="service-card tilt">
+        <div class="service-num">03</div>
+        <div class="service-title">Чистовая отделка</div>
+        <div class="service-desc">Полы, покраска, плитка, установка мебели и сантехники.</div>
+      </div>
+      <div class="service-card tilt">
+        <div class="service-num">04</div>
+        <div class="service-title">Сдача объекта</div>
+        <div class="service-desc">Финальная приёмка вместе с заказчиком и передача гарантии.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="process">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="eyebrow">Как мы работаем</div>
+      <h2>Четыре шага от заявки до новоселья</h2>
+    </div>
+    <div class="process-track">
+      <div class="process-line"></div>
+      <div class="process-line-fill" id="processFill"></div>
+      <div class="process-grid">
+        <div class="process-step"><div class="step-dot"></div><div class="step-num">Шаг 1</div><div class="step-title">Заявка и замер</div><div class="step-desc">Выезжаем на объект в течение 2 дней, бесплатно.</div></div>
+        <div class="process-step"><div class="step-dot"></div><div class="step-num">Шаг 2</div><div class="step-title">Смета и договор</div><div class="step-desc">Фиксируем цену и сроки — без скрытых доплат.</div></div>
+        <div class="process-step"><div class="step-dot"></div><div class="step-num">Шаг 3</div><div class="step-title">Ремонт</div><div class="step-desc">Еженедельные отчёты и фото хода работ.</div></div>
+        <div class="process-step"><div class="step-dot"></div><div class="step-num">Шаг 4</div><div class="step-title">Приёмка</div><div class="step-desc">Совместный осмотр и передача гарантийного талона.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="work">
+  <div class="wrap testimonial">
+    <div class="testimonial-frame reveal">
+      <span class="corner-tick tl"></span><span class="corner-tick tr"></span>
+      <span class="corner-tick bl"></span><span class="corner-tick br"></span>
+      <svg viewBox="0 0 400 300" fill="none">
+        <rect class="draw-path" style="--len:640" x="50" y="50" width="140" height="90" stroke="#8FD3FF" stroke-width="1.4"/>
+        <rect class="draw-path d2" style="--len:520" x="190" y="50" width="120" height="60" stroke="#8FD3FF" stroke-width="1.4"/>
+        <rect class="draw-path d3" style="--len:440" x="190" y="110" width="120" height="80" stroke="#8FD3FF" stroke-width="1.4"/>
+        <text class="dim-label" x="120" y="100" text-anchor="middle">Гостиная</text>
+        <text class="dim-label" x="250" y="84" text-anchor="middle">Кухня</text>
+        <text class="dim-label" x="250" y="154" text-anchor="middle">Спальня</text>
+        <path class="draw-path" style="--len:60" d="M50 220 L310 220" stroke="#4C7FB3" stroke-width="1"/>
+        <text class="dim-label" x="180" y="238" text-anchor="middle">68 м²</text>
+      </svg>
+    </div>
+    <div class="testimonial-copy reveal">
+      <div class="testimonial-quote">«Сделали ремонт квартиры за 6 недель точно в срок и в смету. Каждую неделю присылали фото и видео — контролировать процесс было легко»</div>
+      <div>
+        <div class="testimonial-name">Анна Петрова</div>
+        <div class="testimonial-meta">Ремонт квартиры, 68 м², [ГОРОД]</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="calc">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="eyebrow">Калькулятор</div>
+      <h2>Узнайте примерную стоимость за 10 секунд</h2>
+    </div>
+    <div class="calc-panel reveal">
+      <div class="calc-controls">
+        <div>
+          <div class="calc-row-label"><span>Площадь объекта</span><span class="val" id="areaVal">68 м²</span></div>
+          <input type="range" class="ruler-slider" id="areaSlider" min="20" max="200" step="2" value="68" aria-label="Площадь объекта в квадратных метрах">
+        </div>
+        <div>
+          <div class="calc-row-label"><span>Пакет отделки</span></div>
+          <div class="pkg-tabs" role="group" aria-label="Пакет отделки">
+            <button type="button" class="pkg-tab active" data-rate="18000">Эконом</button>
+            <button type="button" class="pkg-tab" data-rate="28000">Стандарт</button>
+            <button type="button" class="pkg-tab" data-rate="42000">Премиум</button>
+          </div>
+        </div>
+      </div>
+      <div class="calc-result">
+        <div class="calc-eyebrow">Примерная стоимость</div>
+        <div class="calc-price" id="calcPrice">1 100 000 – 1 346 000 ₽</div>
+        <div class="calc-formula" id="calcFormula">68 м² × 18 000 ₽/м²</div>
+        <div class="calc-note">Точная смета — после бесплатного выезда замерщика. Разброс учитывает сложность объекта.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="contact" class="cta">
+  <div class="wrap cta-row">
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <h2>Обсудим ваш проект?</h2>
+      <p>Оставьте номер — перезвоним в течение часа и рассчитаем примерную стоимость.</p>
+    </div>
+    <div class="cta-actions">
+      <a class="btn btn-solid magnetic" href="tel:+70000000000">+7 (000) 000-00-00</a>
+      <a class="btn btn-outline magnetic" href="https://t.me/">Написать в Telegram</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap" style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; width: 100%;">
+    <div>© 2026 СтройДом. Все права защищены.</div>
+    <div class="logo">СтройДом</div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // cursor spotlight across the whole site
+  var siteSpot = document.getElementById('siteSpot');
+  if (siteSpot && !reduced) {
+    document.addEventListener('mousemove', function (e) {
+      siteSpot.style.setProperty('--sx', e.clientX + 'px');
+      siteSpot.style.setProperty('--sy', e.clientY + 'px');
+      siteSpot.classList.add('is-active');
+    });
+    document.addEventListener('mouseleave', function () {
+      siteSpot.classList.remove('is-active');
+    });
+  }
+
+  // drafting crosshair inside blueprint frames
+  function attachCrosshair(container, spanX, spanY) {
+    if (!container || reduced) return;
+    var v = document.createElement('div'); v.className = 'xhair-v';
+    var h = document.createElement('div'); h.className = 'xhair-h';
+    var label = document.createElement('div'); label.className = 'xhair-label';
+    container.appendChild(v); container.appendChild(h); container.appendChild(label);
+    container.addEventListener('mousemove', function (e) {
+      var r = container.getBoundingClientRect();
+      var x = e.clientX - r.left, y = e.clientY - r.top;
+      v.style.left = x + 'px'; v.style.opacity = 1;
+      h.style.top = y + 'px'; h.style.opacity = 1;
+      label.style.left = x + 'px'; label.style.top = y + 'px'; label.style.opacity = 1;
+      var mmX = Math.round((x / r.width) * spanX);
+      var mmY = Math.round((1 - y / r.height) * spanY);
+      label.textContent = 'X ' + mmX + ' · Y ' + mmY + ' см';
+    });
+    container.addEventListener('mouseleave', function () {
+      v.style.opacity = 0; h.style.opacity = 0; label.style.opacity = 0;
+    });
+  }
+  attachCrosshair(document.querySelector('.blueprint-frame'), 1240, 680);
+  attachCrosshair(document.querySelector('.testimonial-frame'), 850, 620);
+
+  // subtle background grid parallax
+  if (!reduced) {
+    document.addEventListener('mousemove', function (e) {
+      var x = (e.clientX / window.innerWidth - 0.5) * 12;
+      var y = (e.clientY / window.innerHeight - 0.5) * 12;
+      document.body.style.backgroundPosition = x + 'px ' + y + 'px, ' + x + 'px ' + y + 'px, 0 0';
+    });
+  }
+
+  // smeta calculator
+  (function () {
+    var areaSlider = document.getElementById('areaSlider');
+    var areaVal = document.getElementById('areaVal');
+    var price = document.getElementById('calcPrice');
+    var formula = document.getElementById('calcFormula');
+    var tabs = document.querySelectorAll('.pkg-tab');
+    if (!areaSlider) return;
+    var rate = parseInt(document.querySelector('.pkg-tab.active').getAttribute('data-rate'), 10);
+    var shownMin = 0, shownMax = 0;
+
+    function fmt(n) { return Math.round(n).toLocaleString('ru-RU'); }
+
+    function animateTo(min, max) {
+      var startMin = shownMin, startMax = shownMax, start = null, dur = 350;
+      function step(ts) {
+        if (!start) start = ts;
+        var p = Math.min((ts - start) / dur, 1);
+        var curMin = startMin + (min - startMin) * p;
+        var curMax = startMax + (max - startMax) * p;
+        price.textContent = fmt(curMin) + ' – ' + fmt(curMax) + ' ₽';
+        if (p < 1) requestAnimationFrame(step);
+        else { shownMin = min; shownMax = max; price.textContent = fmt(min) + ' – ' + fmt(max) + ' ₽'; }
+      }
+      if (reduced) { shownMin = min; shownMax = max; price.textContent = fmt(min) + ' – ' + fmt(max) + ' ₽'; }
+      else requestAnimationFrame(step);
+    }
+
+    function recompute() {
+      var area = parseInt(areaSlider.value, 10);
+      areaVal.textContent = area + ' м²';
+      var base = area * rate;
+      animateTo(base * 0.92, base * 1.12);
+      formula.textContent = area + ' м² × ' + fmt(rate) + ' ₽/м²';
+    }
+
+    areaSlider.addEventListener('input', recompute);
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        tabs.forEach(function (t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        rate = parseInt(tab.getAttribute('data-rate'), 10);
+        recompute();
+      });
+    });
+
+    var area0 = parseInt(areaSlider.value, 10);
+    shownMin = area0 * rate * 0.92; shownMax = area0 * rate * 1.12;
+    price.textContent = fmt(shownMin) + ' – ' + fmt(shownMax) + ' ₽';
+    formula.textContent = area0 + ' м² × ' + fmt(rate) + ' ₽/м²';
+  })();
+
+  // magnetic buttons
+  if (!reduced) {
+    document.querySelectorAll('.magnetic').forEach(function (btn) {
+      btn.addEventListener('mousemove', function (e) {
+        var r = btn.getBoundingClientRect();
+        var x = e.clientX - r.left - r.width / 2;
+        var y = e.clientY - r.top - r.height / 2;
+        btn.style.transform = 'translate(' + (x * 0.25) + 'px,' + (y * 0.3) + 'px)';
+      });
+      btn.addEventListener('mouseleave', function () { btn.style.transform = ''; });
+    });
+  }
+
+  // tilt cards
+  if (!reduced) {
+    document.querySelectorAll('.tilt').forEach(function (card) {
+      card.addEventListener('mousemove', function (e) {
+        var r = card.getBoundingClientRect();
+        var px = (e.clientX - r.left) / r.width - 0.5;
+        var py = (e.clientY - r.top) / r.height - 0.5;
+        card.style.transform = 'perspective(600px) rotateX(' + (-py * 8) + 'deg) rotateY(' + (px * 8) + 'deg)';
+      });
+      card.addEventListener('mouseleave', function () {
+        card.style.transform = 'perspective(600px) rotateX(0deg) rotateY(0deg)';
+      });
+    });
+  }
+
+  // scroll reveal
+  var revealEls = document.querySelectorAll('.reveal, .process-step');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en, i) {
+        if (en.isIntersecting) {
+          en.target.classList.add('in-view');
+          io.unobserve(en.target);
+        }
+      });
+    }, { threshold: 0.2 });
+    revealEls.forEach(function (el) { io.observe(el); });
+
+    var fill = document.getElementById('processFill');
+    if (fill) {
+      var io2 = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (en.isIntersecting) { fill.classList.add('in-view'); io2.disconnect(); }
+        });
+      }, { threshold: 0.3 });
+      io2.observe(fill);
+    }
+
+    // count-up stats
+    document.querySelectorAll('.stat-num').forEach(function (el) {
+      var target = parseInt(el.getAttribute('data-count'), 10);
+      var suffix = el.getAttribute('data-suffix') || '';
+      var io3 = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (en.isIntersecting) {
+            io3.disconnect();
+            var start = null, dur = 1100;
+            function step(ts) {
+              if (!start) start = ts;
+              var p = Math.min((ts - start) / dur, 1);
+              var val = Math.floor(p * target);
+              el.textContent = val + suffix;
+              if (p < 1) requestAnimationFrame(step);
+              else el.textContent = target + suffix;
+            }
+            requestAnimationFrame(step);
+          }
+        });
+      }, { threshold: 0.5 });
+      io3.observe(el);
+    });
+  } else {
+    revealEls.forEach(function (el) { el.classList.add('in-view'); });
+  }
+})();
+</script>
+</body>
+</html>
