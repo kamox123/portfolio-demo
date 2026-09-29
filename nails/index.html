@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Студия маникюра «Лак» — демо-сайт</title>
+<meta name="description" content="Демо-сайт студии маникюра: галерея дизайнов, цены, подбор дизайна, запись.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,500&family=Nunito+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#fff7f7; --blush:#f9e1e3; --rose:#e98a9b; --deep:#b8506a; --ink:#3a2a2f; --muted:#8c747a; --white:#fff; }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.65 'Nunito Sans',system-ui,sans-serif; }
+  .wrap { max-width:1120px; margin:0 auto; padding:0 20px; }
+  h1,h2,h3 { font-family:'Cormorant Garamond',Georgia,serif; font-weight:600; margin:0; line-height:1.05; }
+  .btn { display:inline-flex; align-items:center; gap:10px; padding:15px 30px; border-radius:999px; font:inherit; font-weight:800; text-decoration:none; border:0; cursor:pointer; transition:.25s; }
+  .btn.rose { background:var(--deep); color:var(--white); box-shadow:0 10px 24px rgba(184,80,106,.3); }
+  .btn.rose:hover { transform:translateY(-2px); box-shadow:0 14px 30px rgba(184,80,106,.4); }
+  .btn.soft { background:var(--white); color:var(--deep); }
+
+  header { display:flex; justify-content:space-between; align-items:center; height:80px; }
+  .logo { font-family:'Cormorant Garamond',serif; font-size:32px; font-style:italic; text-decoration:none; color:var(--ink); }
+  .logo b { color:var(--deep); font-style:normal; }
+  nav a { margin-left:24px; color:var(--muted); text-decoration:none; font-weight:600; font-size:15px; }
+  nav a:hover { color:var(--deep); }
+
+  .hero { display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:center; padding:30px 0 90px; }
+  .hero h1 { font-size:clamp(52px,7.5vw,96px); }
+  .hero h1 i { color:var(--deep); }
+  .hero p { font-size:19px; color:var(--muted); margin:22px 0 32px; max-width:460px; }
+  .badges { display:flex; gap:10px; flex-wrap:wrap; margin-top:30px; }
+  .badges span { background:var(--white); border-radius:999px; padding:8px 16px; font-size:14px; font-weight:600; color:var(--deep); }
+  .hand { position:relative; justify-self:center; width:100%; max-width:440px; aspect-ratio:1; }
+  .blob { position:absolute; inset:6%; border-radius:48% 52% 45% 55% / 55% 45% 55% 45%; background:linear-gradient(135deg,#fbd3d9,#f6b9c4); animation:morph 9s ease-in-out infinite; }
+  @keyframes morph { 50% { border-radius:55% 45% 52% 48% / 45% 55% 45% 55%; } }
+  .hand svg { position:relative; width:100%; height:100%; }
+
+  section { padding:90px 0; }
+  .head { text-align:center; margin-bottom:44px; }
+  .head small { color:var(--deep); font-weight:800; letter-spacing:.2em; text-transform:uppercase; font-size:13px; }
+  .head h2 { font-size:clamp(40px,5.5vw,64px); margin-top:8px; }
+
+  .gallery { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+  .design { background:var(--white); border-radius:24px; padding:22px 16px 18px; text-align:center; transition:.3s; cursor:pointer; border:2px solid transparent; }
+  .design:hover { transform:translateY(-5px); border-color:var(--blush); }
+  .nails { display:flex; justify-content:center; gap:7px; height:110px; align-items:flex-end; margin-bottom:14px; }
+  .nail { width:26px; border-radius:13px 13px 8px 8px; box-shadow:inset 0 -6px 0 rgba(0,0,0,.06), inset 4px 4px 0 rgba(255,255,255,.35); }
+  .design h3 { font-size:22px; }
+  .design small { color:var(--muted); }
+
+  .prices { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .price { background:var(--white); border-radius:24px; padding:26px 28px; display:flex; justify-content:space-between; align-items:center; gap:14px; }
+  .price h3 { font-size:25px; }
+  .price p { margin:4px 0 0; color:var(--muted); font-size:14px; }
+  .price b { font-size:22px; color:var(--deep); white-space:nowrap; }
+
+  .quiz { background:linear-gradient(135deg,var(--deep),#8f3a52); color:var(--white); border-radius:32px; padding:50px; display:grid; grid-template-columns:1fr 1fr; gap:40px; align-items:center; }
+  .quiz h2 { font-size:48px; }
+  .quiz p { opacity:.85; }
+  .q { background:rgba(255,255,255,.1); border-radius:24px; padding:26px; }
+  .q h3 { font-family:'Nunito Sans',sans-serif; font-size:18px; font-weight:800; margin-bottom:14px; }
+  .opts { display:flex; flex-wrap:wrap; gap:8px; }
+  .opts button { border:1.5px solid rgba(255,255,255,.5); background:none; color:var(--white); border-radius:999px; padding:9px 16px; font:inherit; font-weight:600; cursor:pointer; }
+  .opts button:hover { background:rgba(255,255,255,.15); }
+  .result { text-align:center; }
+  .result .nails { height:120px; }
+  .result h3 { font-size:34px; margin:8px 0; }
+  .dots { display:flex; gap:6px; margin-bottom:16px; }
+  .dots i { width:26px; height:4px; border-radius:2px; background:rgba(255,255,255,.3); }
+  .dots i.on { background:var(--white); }
+
+  .masters { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+  .m { background:var(--white); border-radius:24px; padding:28px; text-align:center; }
+  .ava { width:92px; height:92px; margin:0 auto 16px; border-radius:50%; display:grid; place-items:center; font-family:'Cormorant Garamond',serif; font-size:40px; color:var(--white); }
+  .m h3 { font-size:28px; }
+  .m p { color:var(--muted); margin:6px 0 0; font-size:15px; }
+
+  .book { text-align:center; background:var(--white); border-radius:32px; padding:60px 30px; }
+  .book h2 { font-size:54px; }
+  .book p { color:var(--muted); font-size:18px; margin:14px auto 28px; max-width:520px; }
+  .book .btns { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+  .tg { background:#2aabee; color:#fff; box-shadow:0 10px 24px rgba(42,171,238,.3); }
+  footer { padding:40px 0; text-align:center; color:var(--muted); font-size:13px; }
+  @media (max-width:860px) {
+    nav { display:none; }
+    .hero, .prices, .quiz { grid-template-columns:1fr; }
+    .gallery { grid-template-columns:1fr 1fr; }
+    .masters { grid-template-columns:1fr; }
+    .quiz { padding:30px; }
+    .hand { max-width:300px; }
+  }
+  @media (prefers-reduced-motion:reduce) { .blob { animation:none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="logo" href="#">студия <b>лак</b></a>
+    <nav><a href="#gallery">Дизайны</a><a href="#prices">Цены</a><a href="#quiz">Подбор</a><a href="#book">Запись</a></nav>
+  </header>
+
+  <div class="hero">
+    <div>
+      <h1>Маникюр, который <i>держится</i> три недели</h1>
+      <p>Аккуратное покрытие, стерильные инструменты и мастера, которые слышат ваши пожелания. Запись в Telegram за минуту.</p>
+      <a class="btn rose" href="#book">Записаться</a>
+      <div class="badges"><span>✦ стерильно</span><span>✦ гарантия 7 дней</span><span>✦ 200+ оттенков</span></div>
+    </div>
+    <div class="hand">
+      <div class="blob"></div>
+      <svg viewBox="0 0 400 400">
+        <path d="M130 360c-10-60-20-110 10-150l20-110c4-18 30-16 30 2l-4 96 10-120c2-20 32-20 32 0l0 124 14-110c3-18 30-16 30 2l-10 124 16-80c4-16 28-12 26 4l-18 140c-6 40-30 70-40 78z" fill="#f4d3c2" stroke="#d9a891" stroke-width="3"/>
+        <g fill="#b8506a"><rect x="161" y="88" width="24" height="34" rx="12" transform="rotate(4 173 105)"/><rect x="198" y="64" width="26" height="36" rx="13"/><rect x="238" y="80" width="24" height="34" rx="12" transform="rotate(-6 250 97)"/><rect x="272" y="130" width="22" height="30" rx="11" transform="rotate(-12 283 145)"/></g>
+        <g fill="#fff" opacity=".5"><rect x="166" y="94" width="6" height="12" rx="3"/><rect x="204" y="70" width="6" height="13" rx="3"/><rect x="243" y="86" width="6" height="12" rx="3"/></g>
+        <g fill="#fff"><circle cx="90" cy="120" r="5"/><circle cx="320" cy="70" r="4"/><circle cx="330" cy="260" r="6"/><path d="M80 250l4 10 10 4-10 4-4 10-4-10-10-4 10-4z"/></g>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<section id="gallery">
+  <div class="wrap">
+    <div class="head"><small>Портфолио</small><h2>Любимые дизайны</h2></div>
+    <div class="gallery" id="gallery-list"></div>
+  </div>
+</section>
+
+<section id="prices" style="padding-top:0">
+  <div class="wrap">
+    <div class="head"><small>Прайс</small><h2>Цены</h2></div>
+    <div class="prices" id="price-list"></div>
+  </div>
+</section>
+
+<section id="quiz" style="padding-top:0">
+  <div class="wrap quiz">
+    <div><h2>Не знаете, какой дизайн выбрать?</h2><p>Ответьте на три вопроса — подскажем вариант, а мастер доведёт его до идеала на месте.</p></div>
+    <div class="q" id="q"></div>
+  </div>
+</section>
+
+<section style="padding-top:0">
+  <div class="wrap">
+    <div class="head"><small>Команда</small><h2>Мастера</h2></div>
+    <div class="masters">
+      <div class="m"><div class="ava" style="background:#e98a9b">А</div><h3>Анна</h3><p>Френч и нюд, идеальные блики. 7 лет опыта.</p></div>
+      <div class="m"><div class="ava" style="background:#b8506a">В</div><h3>Вика</h3><p>Сложный дизайн: роспись, втирки, стразы.</p></div>
+      <div class="m"><div class="ava" style="background:#c9a2d6">Л</div><h3>Лиза</h3><p>Педикюр и уход, парафинотерапия.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="book" style="padding-top:0">
+  <div class="wrap">
+    <div class="book">
+      <h2>Запишитесь на удобное время</h2>
+      <p>Бот в Telegram покажет свободные окна, запишет и напомнит накануне. Можно и по телефону.</p>
+      <div class="btns"><a class="btn tg" href="#" onclick="alert('Это демо — на настоящем сайте здесь откроется бот записи в Telegram');return false">Записаться в Telegram</a><a class="btn soft" href="#">+7 (000) 000-00-00</a></div>
+    </div>
+  </div>
+</section>
+
+<footer>Демо-сайт для портфолио · «Лак» — вымышленная студия</footer>
+
+<script>
+const $ = s => document.querySelector(s);
+// Дизайны рисуются кодом: цвета ногтей и узор
+const DESIGNS = [
+  { name:'Нюд', note:'нежно и на каждый день', nails:['#e8c1b0','#e8c1b0','#e8c1b0','#e8c1b0'] },
+  { name:'Френч', note:'классика с белой линией', nails:['linear-gradient(#fff 0 28%,#f3d6cc 28%)','linear-gradient(#fff 0 28%,#f3d6cc 28%)','linear-gradient(#fff 0 28%,#f3d6cc 28%)','linear-gradient(#fff 0 28%,#f3d6cc 28%)'] },
+  { name:'Вишня', note:'глубокий бордо', nails:['#7a1f32','#7a1f32','#7a1f32','#7a1f32'] },
+  { name:'Омбре', note:'плавный переход', nails:['linear-gradient(#f9d1d9,#b8506a)','linear-gradient(#f9d1d9,#b8506a)','linear-gradient(#f9d1d9,#b8506a)','linear-gradient(#f9d1d9,#b8506a)'] },
+  { name:'Акцент', note:'один ноготь с блёстками', nails:['#f2b8c3','radial-gradient(circle,#fff 1px,transparent 1.5px) 0 0/6px 6px,#d9829a','#f2b8c3','#f2b8c3'] },
+  { name:'Лаванда', note:'пастель и мягкий блеск', nails:['#c9b3e6','#c9b3e6','#c9b3e6','#c9b3e6'] },
+  { name:'Мрамор', note:'белые разводы', nails:['linear-gradient(135deg,#fff 40%,#cfcfd6 45%,#fff 55%)','linear-gradient(45deg,#fff 35%,#cfcfd6 42%,#fff 52%)','linear-gradient(135deg,#fff 40%,#cfcfd6 45%,#fff 55%)','linear-gradient(45deg,#fff 35%,#cfcfd6 42%,#fff 52%)'] },
+  { name:'Чёрный глянец', note:'смело и стильно', nails:['#1e1a1c','#1e1a1c','#1e1a1c','#1e1a1c'] },
+];
+const nailsHtml = (d, big) => `<div class="nails">${d.nails.map((c, i) => `<i class="nail" style="background:${c};height:${[70,88,82,64][i] * (big ? 1.1 : 1)}px"></i>`).join('')}</div>`;
+$('#gallery-list').innerHTML = DESIGNS.map(d => `<div class="design">${nailsHtml(d)}<h3>${d.name}</h3><small>${d.note}</small></div>`).join('');
+
+const PRICES = [
+  ['Маникюр + покрытие','снятие, форма, гель-лак',2200],['Маникюр без покрытия','гигиенический, уход',1200],
+  ['Наращивание','гель, любая длина',3200],['Педикюр + покрытие','аппаратный, гель-лак',2800],
+  ['Дизайн','френч, роспись, втирка — за все ногти',500],['Парафинотерапия','увлажнение рук',600],
+];
+$('#price-list').innerHTML = PRICES.map(([n, d, p]) => `<div class="price"><div><h3>${n}</h3><p>${d}</p></div><b>${p.toLocaleString('ru-RU')} ₽</b></div>`).join('');
+
+// Мини-тест: три вопроса — совет по дизайну
+const Q = [
+  ['Какой повод?', ['Каждый день', 'Праздник', 'Отпуск']],
+  ['Какие цвета любите?', ['Светлые', 'Яркие', 'Тёмные']],
+  ['Длина ногтей?', ['Короткие', 'Средние', 'Длинные']],
+];
+let step = 0, answers = [];
+function renderQuiz() {
+  const dots = `<div class="dots">${Q.map((_, i) => `<i class="${i <= step ? 'on' : ''}"></i>`).join('')}</div>`;
+  if (step < Q.length) {
+    const [title, opts] = Q[step];
+    $('#q').innerHTML = `${dots}<h3>${title}</h3><div class="opts">${opts.map((o, i) => `<button data-i="${i}">${o}</button>`).join('')}</div>`;
+    $('#q').querySelectorAll('button').forEach(b => b.onclick = () => { answers.push(+b.dataset.i); step++; renderQuiz(); });
+  } else {
+    const pick = [[0,1,6],[4,3,5],[5,2,7]][answers[1]][answers[0]];
+    const d = DESIGNS[pick];
+    $('#q').innerHTML = `<div class="result">${nailsHtml(d, true)}<h3>${d.name}</h3><p>${d.note} — ${['аккуратная короткая форма','мягкий квадрат или овал','миндаль или балерина'][answers[2]]}</p><div class="opts" style="justify-content:center"><button id="again">Пройти заново</button></div></div>`;
+    $('#again').onclick = () => { step = 0; answers = []; renderQuiz(); };
+  }
+}
+renderQuiz();
+</script>
+</body>
+</html>
