@@ -1,20 +1,21 @@
-// Физика «Ходульщика» на движке Planck (Box2D): тело, две ходули на шарнирах, тропы с препятствиями.
+// Физика «Ходульщика»: шаг на ходулях как в Walk Master.
+// Опорная ходуля — перевёрнутый маятник. Пока держишь палец, задняя ходуля идёт вперёд и вверх,
+// а тело наклоняется вперёд. Отпустил — ходуля замирает, тело падает на неё, и она встаёт на землю.
 // Работает в браузере (window.Phys) и в Node (для автотеста).
 (function (root) {
   'use strict';
-  const pl = root.planck || (typeof require !== 'undefined' ? require('planck') : null);
-  const { World, Vec2, Box, Circle, Edge, RevoluteJoint } = pl;
 
-  // ---- настройки управления ----
   const CFG = {
     gravity: 10,
     stiltLen: 2.6,
-    spin: 6.5,        // скорость прокрутки свободной ходули, рад/с
-    push: 1.6,        // насколько опорная ходуля толкает тело вперёд, пока держишь
-    pushTorque: 140,  // сила этого толчка
-    holdTorque: 400,  // как крепко руки держат ходулю
-    uprightK: 120,     // как сильно тело старается стоять ровно
-    uprightD: 16,
+    spin: 3.0,      // скорость, с которой ходуля идёт вперёд, рад/с
+    spinMax: 2.7,   // дальше вверх ходуля не поднимается
+    drop: 5,        // скорость, с которой отпущенная ходуля опускается, рад/с
+    push: 5,        // пока держишь, тело разгоняется вперёд, рад/с²
+    wMax: 1.0,      // предельная скорость наклона от толчка, рад/с
+    damp: 0.25,     // трение в шарнире
+    keep: 0.9,      // сколько скорости остаётся после шага
+    fall: 1.05,     // наклон, после которого персонаж падает, рад
   };
 
   // ---- случайные числа с зерном: тропа N всегда одна и та же ----
@@ -26,11 +27,11 @@
   // ---- тропа: линии земли, блоки, шипы, монеты ----
   function genTrail(n) {
     const r = rng(n * 7 + 3);
-    const lv = { n, edges: [], blocks: [], spikes: [], coins: [], finish: 0, biome: Math.floor((n - 1) / 5) % 3 };
+    const lv = { n, edges: [], blocks: [], spikes: [], coins: [], ice: [], finish: 0, biome: Math.floor((n - 1) / 5) % 3 };
     let x = -12, y = 0;
-    const line = (x2, y2, ice) => { lv.edges.push([x, y, x2, y2, !!ice]); x = x2; y = y2; };
+    const line = (x2, y2, ice) => { lv.edges.push([x, y, x2, y2, !!ice]); if (ice) lv.ice.push([x, x2]); x = x2; y = y2; };
     line(5, 0);
-    const pieces = Math.min(5 + Math.floor(n * 0.8), 22);
+    const pieces = Math.min(4 + Math.floor(n * 0.8), 22);
     const diff = Math.min(1, (n - 1) / 25);
     const kinds = ['flat', 'hill', 'gap', 'block', 'stumps', 'step', 'ice'];
     const avail = n === 1 ? ['flat', 'hill', 'block'] : n === 2 ? ['flat', 'hill', 'block', 'gap', 'step'] : kinds;
@@ -39,30 +40,30 @@
       let k = avail[Math.floor(r() * avail.length)];
       if (k === last && k !== 'flat') k = 'flat';
       last = k;
-      if (i % 2 === 0) lv.coins.push([x + 1.5, y + 3.4]);
+      if (i % 2 === 0) lv.coins.push([x + 1.5, y + 3.6]);
       if (k === 'flat') line(x + 2 + r() * 3, y);
       else if (k === 'hill') {
-        const len = 3 + r() * 3, dy = (r() < 0.5 ? -1 : 1) * (0.4 + r() * (0.6 + diff * 0.8));
+        const len = 4 + r() * 3, dy = (r() < 0.5 ? -1 : 1) * (0.3 + r() * (0.4 + diff * 0.6));
         line(x + len / 2, y + dy * 0.6); line(x + len / 2, y + dy * 0.4 * (r() < 0.5 ? 1 : 0));
       } else if (k === 'gap') {
-        const w = 1.0 + r() * (0.5 + diff * 1.1);
-        line(x + 1.5, y); const x0 = x, y0 = y;
-        line(x, y - 3); line(x + w, y - 3); line(x, y0);
+        const w = 0.9 + r() * (0.4 + diff * 0.9);
+        line(x + 1.8, y); const x0 = x, y0 = y;
+        line(x, y0 - 3); line(x + w, y0 - 3); line(x, y0);
         lv.spikes.push([x0, y0 - 3, x0 + w]);
-        line(x + 1.5, y);
+        lv.coins.push([x0 + w / 2, y0 + 3.4]);
+        line(x + 1.8, y);
       } else if (k === 'block') {
         line(x + 1.5, y);
-        const w = 1 + r() * 1.2, h = 0.3 + r() * (0.25 + diff * 0.45);
+        const w = 1.2 + r() * 1.2, h = 0.3 + r() * (0.25 + diff * 0.45);
         lv.blocks.push([x + w / 2, y + h / 2, w, h, false]);
-        lv.coins.push([x + w / 2, y + h + 3.2]);
         line(x + w + 1.5, y);
       } else if (k === 'stumps') {
         line(x + 1.5, y);
         const cnt = 2 + Math.floor(r() * 2);
-        for (let j = 0; j < cnt; j++) { lv.blocks.push([x + 0.2, y + 0.3, 0.35, 0.6 + r() * 0.3 * diff, true]); line(x + 1.4, y); }
+        for (let j = 0; j < cnt; j++) { lv.blocks.push([x + 0.2, y + 0.3, 0.4, 0.6 + r() * 0.3 * diff, true]); line(x + 1.6, y); }
         line(x + 1, y);
       } else if (k === 'step') {
-        const dy = (r() < 0.55 ? 1 : -1) * (0.35 + r() * (0.3 + diff * 0.4));
+        const dy = (r() < 0.55 ? 1 : -1) * (0.3 + r() * (0.25 + diff * 0.35));
         line(x + 1.5, y); line(x, y + dy); line(x + 2.5, y);
       } else if (k === 'ice') {
         line(x + 1, y); line(x + 4 + r() * 3, y, true); line(x + 1, y);
@@ -84,137 +85,135 @@
     for (const [cx, cy, w, h] of lv.blocks) if (Math.abs(gx - cx) <= w / 2) best = Math.max(best, cy + h / 2);
     return best;
   }
+  const onIce = (lv, x) => lv.ice.some(([a, b]) => x >= a && x <= b);
 
   // ---- персонаж ----
-  const GROUP = -1; // части персонажа друг с другом не сталкиваются
-
-  function createGame(n, opts = {}) {
+  // th — наклон опорной ходули (плюс — бедро впереди ноги), w — скорость наклона,
+  // phi — угол переносимой ходули (0 — вниз, плюс — вперёд, π/2 — горизонтально вперёд)
+  function createGame(n) {
     const lv = genTrail(n);
-    const world = new World({ gravity: Vec2(0, -CFG.gravity) });
-    const g = { lv, world, t: 0, state: 'ready', holding: false, active: 0, coinsGot: 0, coinsTaken: new Set(), events: [], deadT: 0, spinDone: 0 };
-
-    const ground = world.createBody();
-    for (const [x1, y1, x2, y2, ice] of lv.edges) {
-      ground.createFixture({ shape: Edge(Vec2(x1, y1), Vec2(x2, y2)), friction: ice ? 0.03 : 1.0, userData: 'ground' });
-    }
-    for (const [cx, cy, w, h] of lv.blocks) {
-      ground.createFixture({ shape: Box(w / 2, h / 2, Vec2(cx, cy), 0), friction: 1.0, userData: 'ground' });
-    }
-    for (const [x0, y0, x1] of lv.spikes) {
-      ground.createFixture({ shape: Box((x1 - x0) / 2, 0.35, Vec2((x0 + x1) / 2, y0 + 0.3), 0), isSensor: true, userData: 'spikes' });
-    }
-    lv.coins.forEach(([cx, cy], i) => {
-      ground.createFixture({ shape: Circle(Vec2(cx, cy), 0.35), isSensor: true, userData: 'coin:' + i });
-    });
-
-    // тело: туловище + голова одним куском
     const L = CFG.stiltLen;
-    const hip = Vec2(0, L * Math.cos(0.32));
-    const torso = world.createDynamicBody({ position: hip, angularDamping: 0.5 });
-    torso.createFixture({ shape: Box(0.26, 0.42, Vec2(0, 0.42), 0), density: 2.2, friction: 0.6, filterGroupIndex: GROUP, userData: 'body' });
-    torso.createFixture({ shape: Circle(Vec2(0.05, 1.12), 0.32), density: 1.2, friction: 0.6, filterGroupIndex: GROUP, userData: 'head' });
-
-    // ходули: начало тела — в бедре, ходуля смотрит вниз при угле 0
-    const stilts = [];
-    const joints = [];
-    for (const a0 of [-0.32, 0.32]) {
-      const s = world.createDynamicBody({ position: hip, angle: a0, angularDamping: 0.1 });
-      s.createFixture({ shape: Box(0.06, L / 2, Vec2(0, -L / 2), 0), density: 0.9, friction: 0.9, filterGroupIndex: GROUP, userData: 'stilt' });
-      s.createFixture({ shape: Circle(Vec2(0, -L), 0.08), density: 1.5, friction: 1.2, filterGroupIndex: GROUP, userData: 'foot' });
-      const j = world.createJoint(RevoluteJoint({ enableMotor: true, motorSpeed: 0, maxMotorTorque: CFG.holdTorque }, torso, s, hip));
-      stilts.push(s); joints.push(j);
-    }
-    // при старте крутится задняя ходуля
-    g.active = 0;
-    Object.assign(g, { torso, stilts, joints, L });
-
-    world.on('begin-contact', (c) => {
-      const fa = c.getFixtureA(), fb = c.getFixtureB();
-      for (const [f, o] of [[fa, fb], [fb, fa]]) {
-        const u = f.getUserData(), uo = o.getUserData();
-        if (typeof u === 'string' && u.startsWith('coin:') && (uo === 'body' || uo === 'head' || uo === 'stilt' || uo === 'foot')) {
-          const i = +u.slice(5);
-          if (!g.coinsTaken.has(i)) { g.coinsTaken.add(i); g.coinsGot++; g.events.push('coin'); }
-        }
-        if ((u === 'head' || u === 'body') && uo === 'ground' && g.state === 'play') die(g, 'Упал!');
-        if (u === 'foot' && uo === 'ground') g.events.push('land');
-        if (u === 'spikes' && (uo === 'foot' || uo === 'stilt' || uo === 'body' || uo === 'head') && g.state === 'play') die(g, 'На шипы!');
-      }
-    });
+    const g = {
+      lv, L, t: 0, state: 'ready', holding: false, released: false,
+      P: { x: 0, y: groundY(lv, 0) }, Ls: L, th: 0.03, w: 0, phi: -0.3,
+      stance: 1, ta: 0, tw: 0,
+      coinsGot: 0, coinsTaken: new Set(), events: [], deadT: 0, why: '', fallV: 0,
+    };
+    // интерфейс как у тел физического движка — чтобы рисовалка не менялась
+    g.torso = { getAngle: () => g.ta };
+    g.stilts = [0, 1].map((i) => ({ getAngle: () => (i === g.stance ? -g.th : g.phi) }));
     return g;
   }
 
+  function hipPos(g) { return { x: g.P.x + g.Ls * Math.sin(g.th), y: g.P.y + g.Ls * Math.cos(g.th) }; }
+  function footPos(g, i) {
+    const h = hipPos(g);
+    if (i === g.stance) return { x: g.P.x, y: g.P.y };
+    return { x: h.x + g.L * Math.sin(g.phi), y: h.y - g.L * Math.cos(g.phi) };
+  }
+  function stiltAngle(g, i) { return i === g.stance ? -g.th : g.phi; }
+
   function die(g, why) {
+    if (g.state !== 'play') return;
     g.state = 'dead'; g.why = why; g.events.push('fall');
-    // руки отпускают ходули — персонаж валится тряпичной куклой
-    g.pendingRelease = true;
   }
 
-  function hipPos(g) { return g.torso.getPosition(); }
-  function footPos(g, i) { return g.stilts[i].getWorldPoint(Vec2(0, -g.L)); }
-
-  // угол ходули относительно «вниз», от -π до π (плюс — нога впереди)
-  function stiltAngle(g, i) {
-    let a = g.stilts[i].getAngle();
-    a = Math.atan2(Math.sin(a), Math.cos(a));
-    return a;
+  // ставим переносимую ходулю на землю: она становится опорной
+  function plant(g, fx, fy) {
+    const H = hipPos(g);
+    const dx = H.x - fx, dy = H.y - fy, d = Math.hypot(dx, dy);
+    const thn = Math.atan2(dx, dy);
+    // скорость бедра переносится на новую опору (только поперечная часть)
+    const vx = g.w * g.Ls * Math.cos(g.th), vy = -g.w * g.Ls * Math.sin(g.th);
+    // при длинном шаге теряется часть скорости, но не вся — иначе игра слишком злая
+    const proj = (vx * Math.cos(thn) - vy * Math.sin(thn)) / d, full = (g.w * g.Ls) / d;
+    const wn = (0.45 * proj + 0.55 * full) * (onIce(g.lv, fx) ? 0.98 : CFG.keep);
+    const old = g.P;
+    g.P = { x: fx, y: fy }; g.Ls = d; g.th = thn; g.w = wn;
+    g.phi = Math.atan2(old.x - H.x, H.y - old.y); // старая опора теперь сзади
+    g.stance = 1 - g.stance;
+    g.released = false;
+    g.events.push('land');
   }
 
   function step(g, dt, hold) {
     g.events.length = 0;
-    if (g.state === 'ready' && hold) g.state = 'play';
+    if (g.state === 'ready' && hold) { g.state = 'play'; g.w = 0.1; }
+    const H0 = hipPos(g);
     if (g.state === 'play') {
       g.t += dt;
-      const a = g.active, b = 1 - a;
       if (hold) {
-        g.holding = true;
-        g.joints[a].setMaxMotorTorque(CFG.holdTorque);
-        g.joints[a].setMotorSpeed(-CFG.spin);
-        g.joints[b].setMaxMotorTorque(CFG.pushTorque);
-        g.joints[b].setMotorSpeed(-CFG.push);
-      } else {
-        if (g.holding) { g.holding = false; g.active = b; g.events.push('release'); }
-        for (const j of g.joints) { j.setMaxMotorTorque(CFG.holdTorque); j.setMotorSpeed(0); }
+        if (!g.holding) { g.holding = true; g.released = false; g.events.push('swing'); }
+        g.phi = Math.min(g.phi + CFG.spin * dt, CFG.spinMax);
+        if (g.w < CFG.wMax) g.w += (CFG.wMax - g.w) * Math.min(1, CFG.push * dt); // пока держишь, тело уверенно идёт вперёд
+      } else if (g.holding) { g.holding = false; g.released = true; g.events.push('release'); }
+    }
+    if (g.state === 'play' || g.state === 'dead') {
+      const lying = g.state === 'dead' && Math.abs(g.th) >= 1.45;
+      if (!lying) {
+        g.w += (CFG.gravity / g.Ls) * Math.sin(g.th) * dt;
+        g.w *= 1 - CFG.damp * dt;
+        g.th += g.w * dt;
+      } else { g.th = Math.sign(g.th) * 1.45; g.w = 0; }
+      if (g.state === 'play') {
+        g.Ls += (g.L - g.Ls) * Math.min(1, 3 * dt);
+        if (onIce(g.lv, g.P.x)) g.P.x += g.w * g.Ls * Math.cos(g.th) * 0.25 * dt; // на льду опора скользит
       }
-      // тело старается держаться прямо (как настоящий ходулист руками)
-      const ang = Math.atan2(Math.sin(g.torso.getAngle()), Math.cos(g.torso.getAngle()));
-      g.torso.applyTorque(-CFG.uprightK * ang - CFG.uprightD * g.torso.getAngularVelocity());
-      const h = hipPos(g);
-      if (h.x >= g.lv.finish) { g.state = 'win'; g.events.push('win'); }
-      if (h.y < groundY(g.lv, h.x) - 2.5) die(g, 'Упал в яму!');
     }
-    if (g.pendingRelease) {
-      g.pendingRelease = false;
-      for (const j of g.joints) { j.enableMotor(false); }
+    if (g.state === 'play') {
+      // отпущенная ходуля быстро опускается и встаёт, как только коснётся земли
+      if (g.released) {
+        const prev = g.phi;
+        g.phi = Math.max(-0.6, g.phi - CFG.drop * dt);
+        const F1 = footPos(g, 1 - g.stance), gy1 = groundY(g.lv, F1.x);
+        if (gy1 - F1.y > 0.7) g.phi = prev; // упёрлась в бок ящика — дальше не опускается
+      }
+      const F = footPos(g, 1 - g.stance), gy = groundY(g.lv, F.x);
+      if (g.released) {
+        if (F.y <= gy + 0.02) plant(g, F.x, gy);
+        // ступенька вниз: ходуля чуть выдвигается, чтобы достать до земли
+        else if (g.phi <= g.th + 0.05 && F.y - gy < 0.8) plant(g, F.x, gy);
+      }
+      const H = hipPos(g);
+      if (g.th > CFG.fall) die(g, groundY(g.lv, H.x + 1) < H.y - 4 ? 'Упал в яму!' : 'Упал вперёд!');
+      else if (g.th < -CFG.fall) die(g, 'Упал назад!');
+      else if (H.x >= g.lv.finish) { g.state = 'win'; g.events.push('win'); }
+      // монеты: собирает голова, тело или ноги
+      const head = { x: H.x - Math.sin(g.ta) * 1.5, y: H.y + Math.cos(g.ta) * 1.5 };
+      g.lv.coins.forEach(([cx, cy], i) => {
+        if (g.coinsTaken.has(i)) return;
+        const near = (p, r) => Math.hypot(p.x - cx, p.y - cy) < r;
+        if (near(head, 0.75) || near(H, 0.8) || near(F, 0.5)) { g.coinsTaken.add(i); g.coinsGot++; g.events.push('coin'); }
+      });
+      // шипы: нога в яме
+      for (const [x0, y0, x1] of g.lv.spikes) if (F.x > x0 && F.x < x1 && F.y < y0 + 0.6) die(g, 'На шипы!');
     }
+    if (g.state === 'dead') {
+      // если упал над ямой — проваливается вниз
+      const H = hipPos(g);
+      if (groundY(g.lv, H.x) < g.P.y - 2) { g.fallV += CFG.gravity * dt; g.P.y -= g.fallV * dt; }
+    }
+    // туловище: держится почти ровно, слегка наклоняется по ходу и раскачивается
+    const H1 = hipPos(g);
+    const target = g.state === 'dead' ? Math.sign(g.th || 1) * -1.35 : -(g.th * 0.35 + g.w * 0.12);
+    g.tw += ((target - g.ta) * 60 - g.tw * 9) * dt;
+    g.ta += g.tw * dt;
+    g.hipV = { x: (H1.x - H0.x) / dt, y: (H1.y - H0.y) / dt };
     if (g.state === 'dead' || g.state === 'win') g.deadT += dt;
-    g.world.step(dt, 10, 6);
   }
 
-  // Автопилот для проверки: крутить свободную ходулю через верх и отпускать, когда она впереди-внизу
+  // Автопилот для проверки: держать, пока ходуля не выйдет вперёд на нужный угол, потом ждать шага
   function bot(g) {
     if (g.state !== 'play' && g.state !== 'ready') return false;
-    const a = g.active;
-    if (!g.holding) {
-      g._wait = (g._wait || 0) + 1 / 60;
-      if (g._wait < 0.25) return false;
-      g._wait = 0; g._phase = 0; return true;
-    }
-    const ang = stiltAngle(g, a);
-    // фаза: сначала нога уходит назад-вверх (угол < -1.5), потом через верх выходит вперёд
-    if (g._phase === 0 && ang < -1.6) g._phase = 1;
-    if (g._phase === 1 && ang > 1.6) g._phase = 2;
-    if (g._phase === 2) {
-      // не ставить ногу в яму: смотрим, куда она встанет сейчас и чуть позже
-      const h = hipPos(g);
-      const safe = (an) => groundY(g.lv, h.x + g.L * Math.sin(an)) > h.y - g.L - 0.6;
-      if (ang < 0.55 && safe(ang)) return false;
-      if (ang < 1.1 && safe(ang) && !safe(ang - 0.12)) return false;
-      if (ang < 0.05) return false;
-    }
-    return true;
+    if (g.state === 'ready') return true;
+    if (!g.holding) return !g.released && g.th > (g._go ?? -2);
+    // ногу ставим примерно туда, куда наклонилось тело; над ямой — тянем дальше
+    const H = hipPos(g), land = H.x + g.L * Math.sin(g.th) * 1.05;
+    const pit = (x) => groundY(g.lv, x) < H.y - g.L - 0.5;
+    const bad = pit(land) || pit(land + 0.25) || pit(land - 0.15);
+    if (bad) return g.th < 0.85;
+    return g.th < (g._lean ?? 0.25) && g.phi < (g._up ?? 1.0);
   }
-
   root.Phys = { CFG, genTrail, groundY, createGame, step, hipPos, footPos, stiltAngle, bot };
   if (typeof module !== 'undefined') module.exports = root.Phys;
 })(typeof window !== 'undefined' ? window : globalThis);
