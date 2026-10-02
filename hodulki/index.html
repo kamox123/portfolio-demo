@@ -86,7 +86,7 @@
 
 <div class="layer home" id="home">
   <div class="logo stroke">ХОДУЛЬЩИК<small>ТРОПА <span id="hNum">1</span></small></div>
-  <div class="tap stroke" id="hTap">Зажми — нога вперёд · Отпусти — шаг</div>
+  <div class="tap stroke" id="hTap">Коснись и веди пальцем вправо →<br><small style="font-size:16px">нога идёт за пальцем · отпусти — шаг</small></div>
   <div class="dock">
     <button id="bChars"><span>🦝</span>Персонажи<i class="dot hidden" id="dotChars">!</i></button>
     <button id="bTrails"><span>🗺️</span>Тропы</button>
@@ -116,7 +116,7 @@
     <div class="panel-head"><button class="round x" data-close>✕</button><h2 class="stroke">НАСТРОЙКИ</h2></div>
     <div class="rows">
       <label>Звук <input type="checkbox" id="optSound" checked></label>
-      <div class="help"><b>Как ходить.</b> Зажми экран (или пробел) — задняя ходуля идёт вперёд и вверх, а тело наклоняется вперёд. Отпусти — ходуля опустится и встанет на землю. Чем дольше держишь, тем длиннее шаг, но передержишь — упадёшь лицом вперёд. Не дожмёшь — завалишься назад.<br><br>Не касайся земли головой, не падай в ямы с шипами, собирай монеты и покупай новых персонажей.</div>
+      <div class="help"><b>Как ходить.</b> Коснись экрана — задняя ходуля приподнимется. Веди палец вправо — она идёт вперёд ровно за пальцем, дальше ведёшь — выше поднимается. Вынесенная нога тянет тело вперёд. Отпусти — ходуля опустится и встанет на землю, следующим касанием управляешь другой.<br><br>Длинный шаг — быстрее, но легко упасть лицом вперёд. Короткий — надёжнее, но можно завалиться назад. На компьютере: мышь (зажать и вести) или пробел.<br><br>Не касайся земли головой, не падай в ямы с шипами, собирай монеты и покупай новых персонажей.</div>
     </div>
   </div>
 </div>
@@ -239,8 +239,19 @@ function down() {
   if (mode === 'home') setMode('play');
   if (mode === 'play') holding = true;
 }
-function up() { holding = false; }
-window.addEventListener('pointerdown', (e) => { if (e.target.closest('button, .modal, input, label')) return; e.preventDefault(); down(); });
+function up() { holding = false; drag = null; }
+// управление как в Walk Master: коснулся — ходуля приподнялась, ведёшь палец вправо — она идёт вперёд за пальцем
+let drag = null; // { x0, base, dx }
+function dragTarget() {
+  if (!drag) return null; // клавиатура: ходуля идёт вперёд сама
+  return drag.base + 0.3 + (drag.dx / Math.max(260, W * 0.5)) * 1.8;
+}
+window.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('button, .modal, input, label')) return;
+  e.preventDefault(); down();
+  if (holding) drag = { x0: e.clientX, base: g.phi, dx: 0 };
+});
+window.addEventListener('pointermove', (e) => { if (drag) drag.dx = e.clientX - drag.x0; });
 window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up); window.addEventListener('blur', up);
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'Enter') { e.preventDefault(); if (!e.repeat) down(); }
@@ -590,7 +601,7 @@ function frame(now) {
     const hold = mode === 'play' && holding;
     if (hold && !wasHolding) sfx.whoosh();
     wasHolding = hold;
-    step(g, 1 / 60, hold);
+    step(g, 1 / 60, hold, dragTarget());
     for (const e of g.events) {
       if (e === 'land' && mode === 'play') sfx.land();
       if (e === 'coin') { sfx.coin(); save.coins++; persist(); updCoins(); const h = hipPos(g); burst(h.x, h.y + 1.5, 10, ['#ffcf3f', '#fff3a0'], 0.8, 2); }
@@ -701,7 +712,7 @@ document.querySelectorAll('.modal').forEach((m) => m.addEventListener('pointerdo
 // для проверки: #trail5 — сразу тропа 5, #auto — играет автопилот, #shop — открыть персонажей
 const mTrail = location.hash.match(/trail(\d+)/);
 if (mTrail) { save.trail = +mTrail[1]; save.maxTrail = Math.max(save.maxTrail, save.trail); }
-if (/auto/.test(location.hash)) setInterval(() => { if (mode === 'home') setMode('play'); holding = mode === 'play' && Phys.bot(g); }, 1000 / 60);
+if (/auto/.test(location.hash)) setInterval(() => { if (mode === 'home') setMode('play'); holding = mode === 'play' && Phys.bot(g); drag = holding ? { x0: 0, base: g.botTarget - 0.3, dx: 0 } : null; }, 1000 / 60);
 newGame(); setMode('home'); updCoins();
 if (/shop/.test(location.hash)) $('bChars').click();
 requestAnimationFrame(frame);

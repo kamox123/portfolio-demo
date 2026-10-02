@@ -8,10 +8,11 @@
   const CFG = {
     gravity: 10,
     stiltLen: 2.6,
-    spin: 3.0,      // скорость, с которой ходуля идёт вперёд, рад/с
+    spin: 6.0,      // как быстро ходуля догоняет палец, рад/с
+    legMass: 0.32,  // насколько вынесенная вперёд ходуля тянет тело за собой
     spinMax: 2.7,   // дальше вверх ходуля не поднимается
     drop: 5,        // скорость, с которой отпущенная ходуля опускается, рад/с
-    push: 5,        // пока держишь, тело разгоняется вперёд, рад/с²
+    push: 3,        // пока держишь, тело разгоняется вперёд, рад/с²
     wMax: 1.0,      // предельная скорость наклона от толчка, рад/с
     damp: 0.25,     // трение в шарнире
     keep: 0.9,      // сколько скорости остаётся после шага
@@ -136,22 +137,27 @@
     g.events.push('land');
   }
 
-  function step(g, dt, hold) {
+  // hold — палец на экране; target — куда палец ведёт ходулю (угол), null — управление с клавиатуры
+  function step(g, dt, hold, target = null) {
     g.events.length = 0;
     if (g.state === 'ready' && hold) { g.state = 'play'; g.w = 0.1; }
     const H0 = hipPos(g);
     if (g.state === 'play') {
       g.t += dt;
       if (hold) {
-        if (!g.holding) { g.holding = true; g.released = false; g.events.push('swing'); }
-        g.phi = Math.min(g.phi + CFG.spin * dt, CFG.spinMax);
-        if (g.w < CFG.wMax) g.w += (CFG.wMax - g.w) * Math.min(1, CFG.push * dt); // пока держишь, тело уверенно идёт вперёд
+        if (!g.holding) { g.holding = true; g.released = false; g.phi0 = g.phi; g.events.push('swing'); }
+        // ходуля идёт за пальцем (быстро, но не мгновенно); с клавиатуры — сама вперёд
+        const want = target === null ? CFG.spinMax : Math.max(-0.9, Math.min(CFG.spinMax, target));
+        const maxd = CFG.spin * dt;
+        g.phi += Math.max(-maxd, Math.min(maxd, want - g.phi));
+        if (CFG.push && g.w < CFG.wMax) g.w += (CFG.wMax - g.w) * Math.min(1, CFG.push * dt); // лёгкая помощь: пока держишь, тело идёт вперёд
       } else if (g.holding) { g.holding = false; g.released = true; g.events.push('release'); }
     }
     if (g.state === 'play' || g.state === 'dead') {
       const lying = g.state === 'dead' && Math.abs(g.th) >= 1.45;
       if (!lying) {
-        g.w += (CFG.gravity / g.Ls) * Math.sin(g.th) * dt;
+        const legPull = g.state === 'play' ? CFG.legMass * (Math.sin(g.phi) + Math.sin(g.th)) : 0;
+        g.w += (CFG.gravity / g.Ls) * (Math.sin(g.th) + legPull) * dt;
         g.w *= 1 - CFG.damp * dt;
         g.th += g.w * dt;
       } else { g.th = Math.sign(g.th) * 1.45; g.w = 0; }
@@ -195,8 +201,8 @@
     }
     // туловище: держится почти ровно, слегка наклоняется по ходу и раскачивается
     const H1 = hipPos(g);
-    const target = g.state === 'dead' ? Math.sign(g.th || 1) * -1.35 : -(g.th * 0.35 + g.w * 0.12);
-    g.tw += ((target - g.ta) * 60 - g.tw * 9) * dt;
+    const lean = g.state === 'dead' ? Math.sign(g.th || 1) * -1.35 : -(g.th * 0.35 + g.w * 0.12);
+    g.tw += ((lean - g.ta) * 60 - g.tw * 9) * dt;
     g.ta += g.tw * dt;
     g.hipV = { x: (H1.x - H0.x) / dt, y: (H1.y - H0.y) / dt };
     if (g.state === 'dead' || g.state === 'win') g.deadT += dt;
@@ -205,6 +211,7 @@
   // Автопилот для проверки: держать, пока ходуля не выйдет вперёд на нужный угол, потом ждать шага
   function bot(g) {
     if (g.state !== 'play' && g.state !== 'ready') return false;
+    g.botTarget = g._target ?? 0.8;
     if (g.state === 'ready') return true;
     if (!g.holding) return !g.released && g.th > (g._go ?? -2);
     // ногу ставим примерно туда, куда наклонилось тело; над ямой — тянем дальше
