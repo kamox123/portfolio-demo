@@ -16,10 +16,11 @@
 
   // ================= ПЕРСОНАЖИ =================
   const CHARS = [
-    { id: 'explorer', name: 'Исследователь Тим', price: 0, info: 'Прошёл джунгли пешком. Теперь пробует на ходулях.', skin: '#f2c8a0', shirt: '#c9a86a', shirt2: '#a9884a', pants: '#6b5a3a', hat: 'pith', hatC: '#e8dcb5', hair: '#6b3e1e' },
+    { id: 'novice', name: 'Новичок Сёма', price: 0, info: 'Первый раз на ходулях. Кепка задом наперёд — для удачи.', skin: '#f2c8a0', shirt: '#3fa7ff', shirt2: '#1f7fd6', pants: '#3a3f52', hat: 'cap', hatC: '#e5483a', hair: '#5a3a1a', star: true },
+    { id: 'explorer', name: 'Исследователь Тим', price: 150, info: 'Прошёл джунгли пешком. Теперь пробует на ходулях.', skin: '#f2c8a0', shirt: '#c9a86a', shirt2: '#a9884a', pants: '#6b5a3a', hat: 'pith', hatC: '#e8dcb5', hair: '#6b3e1e' },
     { id: 'traveler', name: 'Путешественница Мия', price: 200, info: 'С рюкзаком и шарфом — хоть на край света.', skin: '#e9b48c', shirt: '#e85a71', shirt2: '#c43d55', pants: '#2f4f7a', hat: 'beanie', hatC: '#ffcf3f', hair: '#3a2416', pack: '#4f8a5b', scarf: '#ffcf3f' },
     { id: 'robot', name: 'Робот Болт', price: 300, info: 'Ходули ему не нужны, но он хочет как все.', skin: '#b9c6d3', shirt: '#7d8ea3', shirt2: '#5d6e83', pants: '#4a5566', hat: 'antenna', hatC: '#ff5a5a', robot: true },
-    { id: 'knight', name: 'Рыцарь Гром', price: 400, info: 'Доспехи тяжёлые, зато шлем защищает от шишек.', skin: '#f0c49c', shirt: '#b8c2cf', shirt2: '#8e99a8', pants: '#5a6474', hat: 'helmet', hatC: '#c8d0da', plume: '#e5483a' },
+    { id: 'knight', name: 'Рыцарь Гром', price: 400, info: 'Доспехи тяжёлые, зато шлем защищает от шишек.', skin: '#f0c49c', shirt: '#b8c2cf', shirt2: '#8e99a8', pants: '#5a6474', hat: 'helmet', hatC: '#c8d0da', plume: '#e5483a', cape: '#b3262f' },
     { id: 'pirate', name: 'Пиратка Рина', price: 500, info: 'Палуба качается сильнее. Её не напугать.', skin: '#d9a07a', shirt: '#f4efe6', shirt2: '#d8d0c2', pants: '#3a2f4f', hat: 'tricorn', hatC: '#2a2233', hair: '#7a2d1a', patch: true, sash: '#c0392b' },
     { id: 'builder', name: 'Строитель Петрович', price: 650, info: 'Ходули сам сколотил. Каска на месте.', skin: '#f0b98f', shirt: '#ff8a1e', shirt2: '#e06a00', pants: '#3b5b8a', hat: 'hardhat', hatC: '#ffd21f', hair: '#4a3020', vest: true, mustache: true },
     { id: 'astronaut', name: 'Космонавт Лея', price: 850, info: 'Тренирует походку для Луны.', skin: '#f2c8a0', shirt: '#f2f4f8', shirt2: '#cfd5e0', pants: '#dfe4ec', hat: 'dome', hatC: '#9fd8ff', hair: '#2a1a12', astro: true },
@@ -399,6 +400,7 @@
     // головные уборы
     const hc = ch.hatC;
     if (ch.hat === 'pith') { ctx.fillStyle = hc; ctx.beginPath(); ctx.ellipse(0, -r * 0.55, r * 1.35, r * 0.25, 0, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(0, -r * 0.6, r * 0.85, Math.PI, 0); ctx.fill(); ctx.fillStyle = '#8a6a3a'; ctx.fillRect(-r * 0.85, -r * 0.72, r * 1.7, r * 0.14); }
+    if (ch.hat === 'cap') { ctx.fillStyle = hc; ctx.beginPath(); ctx.arc(0, -r * 0.4, r * 0.95, Math.PI, 0); ctx.fill(); ctx.fillRect(-r * 1.45, -r * 0.5, r * 0.75, r * 0.16); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, -r * 0.9, r * 0.16, 0, 7); ctx.fill(); }
     if (ch.hat === 'beanie') { ctx.fillStyle = hc; ctx.beginPath(); ctx.arc(0, -r * 0.35, r * 0.98, Math.PI, 0); ctx.fill(); ctx.fillStyle = shade(hc, -30); ctx.fillRect(-r, -r * 0.45, r * 2, r * 0.22); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, -r * 1.35, r * 0.22, 0, 7); ctx.fill(); }
     if (ch.hat === 'helmet') { ctx.fillStyle = hc; ctx.beginPath(); ctx.arc(0, -r * 0.1, r * 1.08, Math.PI * 0.95, Math.PI * 2.05); ctx.fill(); ctx.fillStyle = shade(hc, -35); ctx.fillRect(r * 0.05, -r * 0.3, r * 1.05, r * 0.12); ctx.fillStyle = ch.plume; ctx.beginPath(); ctx.ellipse(-r * 0.5, -r * 1.25, r * 0.6, r * 0.22, -0.6 + Math.sin(t * 6) * 0.1, 0, 7); ctx.fill(); }
     if (ch.hat === 'tricorn') { ctx.fillStyle = hc; ctx.beginPath(); ctx.moveTo(-r * 1.3, -r * 0.45); ctx.quadraticCurveTo(0, -r * 1.8, r * 1.3, -r * 0.45); ctx.quadraticCurveTo(0, -r * 0.75, -r * 1.3, -r * 0.45); ctx.fill(); ctx.fillStyle = '#ffcf3f'; ctx.beginPath(); ctx.arc(0, -r * 1.0, r * 0.14, 0, 7); ctx.fill(); }
@@ -415,18 +417,22 @@
       ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(hx + Math.sin(a) * u * 0.72, hy + Math.cos(a) * u * 0.72); ctx.stroke();
       ctx.fillStyle = '#3a2a1a'; ctx.beginPath(); ctx.arc(hx + Math.sin(a) * u * 0.78, hy + Math.cos(a) * u * 0.78, u * 0.12, 0, 7); ctx.fill();
     };
-    const back = drawStilt(ctx, hx, hy, a0, L0, u, sk, false, pose.hl === 0 ? '#5aaaff' : null);
+    const lc = pose.legCol || [null, null], hd = pose.held || [false, false];
+    const back = drawStilt(ctx, hx, hy, a0, L0, u, sk, false, lc[0] ? (hd[0] ? '#9fd0ff' : lc[0]) : null);
     leg(a0, shade(ch.pants, -20));
     // тело
     ctx.save(); ctx.translate(hx, hy); ctx.rotate(-ta);
     const bob = mood === 'idle' ? Math.sin(t * 2.2) * u * 0.02 : 0;
     ctx.translate(0, bob);
+    const sway = Math.sin(t * 6) * 0.12 + (pose.speed || 0) * 0.35;
+    if (ch.cape) { ctx.save(); ctx.translate(-u * 0.2, -u * 1.0); ctx.rotate(0.15 + sway); ctx.fillStyle = ch.cape; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(-u * 0.5, u * 0.5, -u * 0.35 - Math.sin(t * 9) * u * 0.06, u * 1.0); ctx.lineTo(u * 0.25, u * 0.95); ctx.lineTo(u * 0.3, 0); ctx.fill(); ctx.restore(); }
     if (ch.pack) { ctx.fillStyle = ch.pack; rr(ctx, -u * 0.55, -u * 1.0, u * 0.32, u * 0.62, u * 0.1); ctx.fill(); ctx.fillStyle = shade(ch.pack, -25); ctx.fillRect(-u * 0.55, -u * 0.72, u * 0.32, u * 0.06); }
     ctx.fillStyle = ch.pants; rr(ctx, -u * 0.28, -u * 0.3, u * 0.56, u * 0.42, u * 0.12); ctx.fill();
     const bg = ctx.createLinearGradient(-u * 0.3, 0, u * 0.3, 0); bg.addColorStop(0, ch.shirt2); bg.addColorStop(0.55, ch.shirt); bg.addColorStop(1, ch.shirt2);
     ctx.fillStyle = bg; rr(ctx, -u * 0.3, -u * 1.05, u * 0.6, u * 0.82, u * 0.22); ctx.fill();
     if (ch.vest) { ctx.fillStyle = '#d9ff3f'; ctx.fillRect(-u * 0.3, -u * 0.62, u * 0.6, u * 0.08); ctx.fillRect(-u * 0.3, -u * 0.42, u * 0.6, u * 0.08); }
-    if (ch.sash) { ctx.fillStyle = ch.sash; ctx.fillRect(-u * 0.3, -u * 0.35, u * 0.6, u * 0.1); }
+    if (ch.sash) { ctx.fillStyle = ch.sash; ctx.fillRect(-u * 0.3, -u * 0.35, u * 0.6, u * 0.1); ctx.save(); ctx.translate(-u * 0.28, -u * 0.3); ctx.rotate(0.5 + sway); ctx.fillRect(-u * 0.04, 0, u * 0.08, u * 0.32); ctx.restore(); }
+    if (ch.star) { ctx.fillStyle = '#ffcf3f'; ctx.beginPath(); for (let k = 0; k < 10; k++) { const rr2 = k % 2 ? u * 0.05 : u * 0.12, b = (k / 10) * Math.PI * 2 - Math.PI / 2; ctx.lineTo(u * 0.05 + Math.cos(b) * rr2, -u * 0.68 + Math.sin(b) * rr2); } ctx.fill(); }
     if (ch.robot) { ctx.fillStyle = '#5ff7ff'; ctx.beginPath(); ctx.arc(u * 0.05, -u * 0.65, u * 0.08, 0, 7); ctx.fill(); ctx.strokeStyle = '#4a5566'; ctx.lineWidth = 2; ctx.strokeRect(-u * 0.18, -u * 0.85, u * 0.46, u * 0.4); }
     if (ch.id === 'knight') { ctx.strokeStyle = '#6b7383'; ctx.lineWidth = 2; for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.moveTo(-u * 0.28, -u * (0.85 - k * 0.2)); ctx.lineTo(u * 0.28, -u * (0.85 - k * 0.2)); ctx.stroke(); } }
     if (ch.astro) { ctx.fillStyle = '#e5483a'; ctx.fillRect(-u * 0.1, -u * 0.85, u * 0.2, u * 0.12); ctx.fillStyle = '#3a6fb5'; ctx.fillRect(u * 0.1, -u * 0.85, u * 0.12, u * 0.12); }
@@ -435,7 +441,7 @@
     drawHead(ctx, ch, u * 0.37, t, mood);
     ctx.restore();
     leg(a1, ch.pants);
-    const front = drawStilt(ctx, hx, hy, a1, L1, u, sk, true, pose.hl === 1 ? '#ff9a4a' : null);
+    const front = drawStilt(ctx, hx, hy, a1, L1, u, sk, true, lc[1] ? (hd[1] ? '#ffc08a' : lc[1]) : null);
     // руки
     const sx0 = hx - Math.sin(ta) * u * 0.95, sy0 = hy - Math.cos(ta) * u * 0.95;
     const shoulder = (side) => ({ x: sx0 + Math.cos(ta) * side * u * 0.26, y: sy0 - Math.sin(ta) * side * u * 0.26 });

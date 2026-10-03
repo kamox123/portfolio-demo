@@ -9,7 +9,7 @@
   // ================= НАСТРОЙКИ ФИЗИКИ (можно менять) =================
   const CFG = {
     gravity: 10,          // сила тяжести, м/с²
-    walkingSpeed: 1.0,    // предельная скорость наклона тела от «толчка», рад/с
+    walkingSpeed: 0.8,    // предельная скорость наклона тела от «толчка», рад/с
     legLength: 2.6,       // длина ходули, м
     legMass: 0.3,         // насколько вынесенная нога тянет тело (масса ноги / масса тела)
     bodyMass: 1.0,        // масса тела (влияет на то, как сильно тянет нога)
@@ -17,7 +17,7 @@
     movementForce: 6.0,   // толчок вперёд, пока переносишь ногу, рад/с²
     balanceStrength: 2.2, // как сильно тело отклоняется назад, если жать опорную ногу, рад/с²
     legSpeed: 3.0,        // скорость переноса ноги, рад/с
-    stepDistance: 1.5,    // как далеко вперёд можно вынести ногу (угол), рад
+    stepDistance: 0.9,    // как далеко вперёд можно вынести ногу (угол), рад
     fallThreshold: 1.0,   // наклон, после которого персонаж падает, рад
     legSag: 2.8,          // как быстро отпущенная нога опускается под своим весом, рад/с
     damping: 0.25,        // трение в шарнире
@@ -68,6 +68,7 @@
       if (cpAt.includes(i)) { seg(x + 2.5, y); lv.checkpoints.push([x - 1.2, y]); seg(x + 2.5, y); }
       let k = bag[Math.floor(r() * bag.length)];
       if (i === 0 && idx === 0) k = 'flat';
+      if (world === 0 && idx === 0) k = ['flat', 'log', 'flat', 'steps', 'flat', 'pit'][i % 6]; // обучающий уровень — простые препятствия по очереди
       if (root.PHYS_FORCE) k = root.PHYS_FORCE[i % root.PHYS_FORCE.length];
       if (k === last && k !== 'flat' && !root.PHYS_FORCE) k = bag[Math.floor(r() * bag.length)];
       last = k;
@@ -76,12 +77,12 @@
       switch (k) {
         case 'flat': { const len = 2.5 + r() * 3; coinsOver(x + 0.5, x + len, 3.4, 1); seg(x + len, y); break; }
         case 'slope': {
-          const len = 4 + r() * 3, dy = (r() < 0.5 ? -1 : 1) * (0.4 + r() * (0.5 + d * 0.9));
+          const len = 5 + r() * 3, dy = (r() < 0.5 ? -1 : 1) * (0.25 + r() * (0.3 + d * 0.35));
           seg(x + len * 0.5, y + dy * 0.7); seg(x + len * 0.5, y + dy * 0.3); break;
         }
         case 'steps': {
           const n = 2 + Math.floor(r() * 2), up = r() < 0.6 ? 1 : -1;
-          for (let s = 0; s < n; s++) { const h = 0.25 + r() * (0.15 + d * 0.25); seg(x + 1.7, y); seg(x, y + up * h); }
+          for (let s = 0; s < n; s++) { const h = 0.2 + r() * (0.12 + d * 0.13); seg(x + 1.7, y); seg(x, y + up * h); }
           seg(x + 1.6, y); break;
         }
         case 'pit': {
@@ -89,17 +90,17 @@
           pitFloor(x, w, pitKind); coinsOver(x, x + w, 3.2, 1); x += w; seg(x + 1.6, y); break;
         }
         case 'water': {
-          seg(x + 1.6, y); const w = 0.9 + r() * (0.3 + d * 0.4);
+          seg(x + 1.6, y); const w = 0.75 + r() * (0.25 + d * 0.3);
           pitFloor(x, w, 'water'); coinsOver(x, x + w, 3.2, 1); x += w; seg(x + 1.6, y); break;
         }
         case 'log': {
-          seg(x + 1.5, y); const rad = 0.35 + r() * (0.2 + d * 0.3);
+          seg(x + 1.5, y); const rad = 0.28 + r() * (0.12 + d * 0.2);
           lv.objs.push({ type: 'log', cx: x + rad + 0.2, cy: y, r: rad });
           coinsOver(x, x + 2 * rad + 0.4, 3.7, 1); seg(x + 2 * rad + 0.4 + 1.5, y); break;
         }
         case 'bridge': {
           seg(x + 1.4, y); const w = 2.4 + r() * (1 + d * 1.5);
-          lv.objs.push({ type: 'bridge', x0: x, x1: x + w, y0: y, sag: 0.25 + r() * 0.2, load: 0 });
+          lv.objs.push({ type: 'bridge', x0: x, x1: x + w, y0: y, sag: 0.12 + r() * 0.12, load: 0 });
           pitFloor(x, w, pitKind); coinsOver(x, x + w, 3.4, 2); x += w; seg(x + 1.4, y); break;
         }
         case 'narrow': {
@@ -150,8 +151,8 @@
           const w = 1.2 + r() * (0.3 + d * 0.3); pitFloor(x, w, pitKind); coinsOver(x0, x + w, 4.2, 1); x += w; seg(x + 1.6, y); break;
         }
         case 'lowg': {
-          seg(x + 0.8, y); const x0 = x, w = 1.3 + r() * (0.3 + d * 0.3);
-          lv.zones.push({ type: 'lowg', x0: x0 - 1.5, x1: x0 + w + 2.5, k: 0.4 });
+          seg(x + 0.8, y); const x0 = x, w = 1.1 + r() * (0.2 + d * 0.2);
+          lv.zones.push({ type: 'lowg', x0: x0 - 1.5, x1: x0 + w + 2.5, k: 0.55 });
           pitFloor(x, w, pitKind); coinsOver(x0, x0 + w, 4.4, 2); x += w; seg(x + 1.8, y); break;
         }
       }
@@ -193,7 +194,7 @@
     for (const o of lv.objs) {
       if (o.type === 'log') { const dx = x - o.cx; if (Math.abs(dx) < o.r) take(o.cy + Math.sqrt(o.r * o.r - dx * dx), o, 'log'); }
       else if (o.type === 'bridge') {
-        if (x >= o.x0 && x <= o.x1) { const u = (x - o.x0) / (o.x1 - o.x0); take(o.y0 - (o.sag + o.load * 0.25) * Math.sin(Math.PI * u), o, 'bridge'); }
+        if (x >= o.x0 && x <= o.x1) { const u = (x - o.x0) / (o.x1 - o.x0); take(o.y0 - (o.sag + o.load * 0.12) * Math.sin(Math.PI * u), o, 'bridge'); }
       } else if (o.type === 'seesaw') {
         const dx = x - o.px, ca = Math.cos(o.a);
         if (Math.abs(dx) <= o.hl * ca) take(o.py + dx * Math.tan(o.a), o, 'seesaw');
@@ -242,6 +243,8 @@
   }
 
   // ================= ПЕРСОНАЖ =================
+  const CLEAR = 0.08; // насколько стопа может «вдавиться» в землю (подошва, колено)
+  const TIPS = { 'Сбило лопастью!': 'Подожди, пока лопасть пройдёт, и шагай сразу за ней.', 'Попал под камень!': 'Смотри на тень на земле: темнеет — значит камень летит.', 'Раздавило прессом!': 'Проходи, когда пресс только поднялся.', 'Ходуля ушла под воду!': 'Ставь ногу на берег или льдину, а не в воду.', 'Упал в воду!': 'Льдина уплыла — переходи на неё обеими ногами или сразу шагай дальше.', 'Наступил на шипы!': 'Перешагивай яму: держи ногу дольше, чтобы шаг был длиннее.', 'Упал в пропасть!': 'Перешагивай яму длинным шагом.' };
   // Опорная нога s — перевёрнутый маятник: th (плюс — бедро впереди стопы), w — скорость наклона.
   // Свободная нога: phi (0 — вниз, плюс — вперёд). Держишь её зону — она идёт вперёд и тянет тело.
   // Отпустил — опускается и встаёт, как только коснётся поверхности. Только что оставленная сзади нога
@@ -263,8 +266,10 @@
     g.P = { x: front, y: surface(lv, front, 0).y };
     const hipY = g.P.y + L * Math.cos(a);
     g.th = Math.atan2(hipX - g.P.x, hipY - g.P.y); g.Ls = Math.hypot(hipX - g.P.x, hipY - g.P.y);
-    g.legs[0].pin = { x: backX, y: surface(lv, backX, 0).y };
-    g.legs[0].phi = -a; g.legs[1].phi = a;
+    // левая нога впереди (опора), правая сзади упирается — первой шагает правая, как в обучении
+    g.s = 0;
+    g.legs[1].pin = { x: backX, y: surface(lv, backX, 0).y };
+    g.legs[1].phi = -a; g.legs[0].phi = a;
     attach(g, surface(lv, g.P.x, 0));
     return g;
   }
@@ -274,6 +279,7 @@
     if (i === g.s) return { x: g.P.x, y: g.P.y };
     const l = g.legs[i];
     if (l.pin) return { x: l.pin.x, y: l.pin.y };
+    if (l.push && l.pushAt) return { x: l.pushAt.x, y: l.pushAt.y };
     const h = hipPos(g);
     return { x: h.x + g.L * Math.sin(l.phi), y: h.y - g.L * Math.cos(l.phi) };
   }
@@ -292,12 +298,12 @@
     else if (o && o.type === 'seesaw') g.att = { o, s: (g.P.x - o.px) / Math.cos(o.a) };
     else if (o && o.type === 'bridge') g.att = { o };
     else g.att = null;
-    g.mat = surf.mat;
+    g.mat = surf.mat; g.lostSupport = false;
   }
   function followSurface(g, dt) {
     const a = g.att;
     if (a) {
-      if (a.o.type === 'plat' || a.o.type === 'swing') { const st = objState(a.o, g.t); g.P.x = st.x0 + a.dx; g.P.y = st.y; }
+      if (a.o.type === 'plat' || a.o.type === 'swing') { const st = objState(a.o, g.t); g.P.x = st.x0 + a.dx; g.P.y = st.y; g.lostSupport = a.dx < -0.2 || a.dx > st.x1 - st.x0 + 0.2; }
       else if (a.o.type === 'seesaw') { g.P.x = a.o.px + a.s * Math.cos(a.o.a); g.P.y = a.o.py + a.s * Math.sin(a.o.a); }
       else if (a.o.type === 'bridge') { const s = surface(g.lv, g.P.x, g.t, g.P.y + 0.5); if (s.obj === a.o) g.P.y = s.y; }
     }
@@ -307,12 +313,12 @@
       else if (pa.o.type === 'seesaw') { l.pin.x = pa.o.px + pa.s * Math.cos(pa.o.a); l.pin.y = pa.o.py + pa.s * Math.sin(pa.o.a); }
     }
     if (typeof g.mat === 'string' && g.mat.startsWith('conv:')) g.P.x += parseFloat(g.mat.slice(5)) * dt;
-    if (g.mat === 'ice') g.P.x += g.w * g.Ls * Math.cos(g.th) * 0.3 * dt; // на льду опора скользит по ходу
+    if (g.mat === 'ice') g.P.x += g.w * g.Ls * Math.cos(g.th) * 0.15 * dt; // на льду опора скользит по ходу
   }
 
-  function die(g, why) {
+  function die(g, why, tip = '') {
     if (g.state !== 'play') return;
-    g.state = 'dead'; g.why = why; g.events.push('fall');
+    g.state = 'dead'; g.why = why; g.tip = tip || TIPS[why] || ''; g.events.push('fall');
   }
 
   // нога i становится опорной в точке F; keep — сколько скорости сохраняется (0 — тело стоит)
@@ -327,6 +333,7 @@
       wn = (0.45 * proj + 0.55 * full) * keep;
     }
     const old = g.s, oldP = { x: g.P.x, y: g.P.y };
+    if (keep) g.lastStep = { t: g.t, len: Math.abs(F.x - oldP.x) };
     if (g.att && g.att.o.type !== 'bridge') oldP.att = { ...g.att };
     g.legs[old].pin = oldP; g.legs[old].phi = Math.atan2(oldP.x - H.x, H.y - oldP.y); g.legs[old].rel = false;
     g.s = i; g.P = { x: F.x, y: F.y }; g.Ls = d; g.th = thn; g.w = wn;
@@ -349,8 +356,8 @@
     for (const o of g.lv.objs) {
       if (o.type === 'seesaw') {
         let torque = -o.a * 6 - o.av * 2.5;
-        if (g.att && g.att.o === o) torque += -(g.P.x - o.px) * 2.5 * Math.cos(o.a);
-        o.av += torque * dt; o.a = Math.max(-0.38, Math.min(0.38, o.a + o.av * dt));
+        if (g.att && g.att.o === o) torque += -(g.P.x - o.px) * 1.4 * Math.cos(o.a);
+        o.av += torque * dt; o.a = Math.max(-0.26, Math.min(0.26, o.a + o.av * dt));
       }
       if (o.type === 'bridge') o.load = g.att && g.att.o === o ? Math.min(1, o.load + dt * 3) : Math.max(0, o.load - dt * 2);
     }
@@ -367,18 +374,48 @@
       // нажали зону опорной ноги, а другая стоит на земле — вес переходит на другую, эта поднимается
       const o = 1 - g.s;
       if (hold[g.s] && !g.legs[g.s].held && g.legs[o].pin && !hold[o]) setStance(g, o, g.legs[o].pin, 0);
-      for (let i = 0; i < 2; i++) { const l = g.legs[i]; if (l.held && !hold[i] && i !== g.s) l.rel = true; l.held = hold[i]; l.back = back[i]; }
+      for (let i = 0; i < 2; i++) { const l = g.legs[i]; if (l.held && !hold[i] && i !== g.s) { if (l.push && l.pushAt) { l.pin = { x: l.pushAt.x, y: l.pushAt.y }; l.push = false; } else l.rel = true; } l.held = hold[i]; l.back = back[i]; }
       const sw = 1 - g.s, l = g.legs[sw];
       if (l.held) {
-        if (l.pin) { l.phi = legAngle(g, sw); l.pin = null; g.events.push('lift'); }
+        if (l.pin) { l.phi = legAngle(g, sw); l.pin = null; l.v = 0; l.push = !l.back && g.th < -0.06; l.pushAt = l.push ? { ...footPos(g, sw), ...l.pinSave } : null; if (!l.push) g.events.push('lift'); }
+        // перенос веса: пока тело позади опоры, задняя нога стоит на земле и толкает его вперёд
+        if (l.push) {
+          if (g.th >= -0.06 || l.back) { l.push = false; g.events.push('lift'); }
+          else { const H = hipPos(g); l.phi = Math.atan2(footPos(g, sw).x - H.x, H.y - footPos(g, sw).y); if (g.w < CFG.walkingSpeed) g.w += (CFG.movementForce - (G / g.Ls) * Math.min(0, Math.sin(g.th))) * dt; l.blocked = true; }
+        }
         l.rel = false;
+        if (!l.push) {
         const dir = l.back ? -1 : 1;
-        l.phi = Math.max(-CFG.stepDistance, Math.min(CFG.stepDistance, l.phi + dir * CFG.legSpeed * dt));
-        // пока переносишь ногу, тело уверенно идёт в ту же сторону
-        const target = dir * CFG.walkingSpeed * (dir > 0 ? 1 : 0.6);
-        if (dir * (target - g.w) > 0) g.w += (target - g.w) * Math.min(1, CFG.movementForce * dt) - (G / g.Ls) * Math.sin(g.th) * dt * 0.9;
+        // нога разгоняется (небольшая инерция), а не едет по готовой траектории
+        l.v = (l.v || 0) + (dir * CFG.legSpeed - (l.v || 0)) * Math.min(1, 12 * dt);
+        const H = hipPos(g);
+        const next = Math.max(-CFG.stepDistance, Math.min(CFG.stepDistance, l.phi + l.v * dt));
+        const fx = H.x + g.L * Math.sin(next), fy = H.y - g.L * Math.cos(next);
+        const s = surface(g.lv, fx, g.t, H.y - 0.3);
+        const lift = dir > 0 ? (next > 0.12 || g.th > 0.08 ? 0.45 : CLEAR) : CLEAR; // персонаж чуть сгибает колено: под собой стопа проходит, впереди перешагивает невысокое
+        if (s.y > -1e8 && fy < s.y - lift) {
+          // ходуля упёрлась в землю — сквозь неё не проходит
+          const wasBlocked = l.blocked; l.blocked = true; l.v = 0;
+          if (!wasBlocked) g.events.push('scrape');
+          if (dir > 0 && next < 0.35 && g.th < 0.1) {
+            // нога сзади упирается и толкает тело вперёд — это и есть «перенос веса»
+            if (g.w < CFG.walkingSpeed) g.w += (CFG.movementForce - (G / g.Ls) * Math.min(0, Math.sin(g.th))) * dt; // толчок пересиливает наклон назад
+            const k = (H.y - s.y + CLEAR) / g.L;
+            if (k < 1) l.phi = Math.max(l.phi, -Math.acos(Math.max(-1, k))); // стопа скользит по земле вслед за телом
+          } else if (dir < 0 && next > -0.2) {
+            if (g.w > -CFG.walkingSpeed * 0.6) g.w -= CFG.movementForce * 0.7 * dt;
+          }
+        } else {
+          l.blocked = false; l.phi = next;
+          // нога в воздухе тянет тело чуть-чуть (основное — центр масс ниже)
+          if (dir > 0 && g.w < CFG.walkingSpeed * 0.5) g.w += CFG.movementForce * 0.12 * dt;
+        }
+        }
       } else if (l.rel) {
-        l.phi = Math.max(-0.6, Math.min(0.6 + Math.abs(l.phi), l.phi - Math.sign(l.phi || 1) * CFG.legSag * dt)); // отпущенная нога опускается
+        // отпущенная нога падает под своим весом, как маятник
+        l.blocked = false;
+        const kk = CFG.legSag * 14; l.v = (l.v || 0) + (-kk * Math.sin(l.phi) - 1.2 * Math.sqrt(kk) * (l.v || 0)) * dt;
+        l.phi += l.v * dt;
       }
       if (hold[g.s] && !g.legs[sw].pin) g.w -= CFG.balanceStrength * dt; // жмёшь опорную — вес назад
     }
@@ -399,12 +436,17 @@
         // упёртая нога держит тело «домиком»: падать в её сторону нельзя
         const dist = Math.hypot(H.x - l.pin.x, H.y - l.pin.y);
         const toward = (l.pin.x - H.x) * g.w * Math.cos(g.th) > 0;
-        if (toward) { g.w *= Math.exp(-12 * dt); if (Math.abs(g.w) < 0.03) g.w = 0; }
-        if (dist > g.L * 1.03) { l.phi = Math.atan2(l.pin.x - H.x, H.y - l.pin.y); l.pin = null; }
+        // обе стопы на земле: ходули жёсткие, тело стоит «домиком» и никуда не едет, пока не поднимешь ногу
+        if (toward || (!l.held && dist >= g.L * 0.995 && Math.abs(g.w) < 0.35)) { g.w *= Math.exp(-12 * dt); if (Math.abs(g.w) < 0.03) g.w = 0; }
+        if (dist > g.L * 1.06) { l.phi = Math.atan2(l.pin.x - H.x, H.y - l.pin.y); l.pin = null; l.rel = true; l.v = 0; } // нога оторвалась — висит и снова встанет, коснувшись земли
+      } else if (l.held && !l.push && !l.back && l.phi >= CFG.stepDistance - 0.02) {
+        const F = footPos(g, sw), surf = surface(g.lv, F.x, g.t, H.y - 0.3);
+        if (surf.y > -1e8 && F.y <= surf.y + 0.02 && surf.y - F.y < 0.7) plant(g, sw, F, surf);
       } else if (l.rel) {
         const F = footPos(g, sw), surf = surface(g.lv, F.x, g.t, H.y - 0.3);
         if (surf.y > -1e8 && F.y <= surf.y + 0.02) {
-          if (surf.y - F.y > 0.7) l.phi -= Math.sign(l.phi) * 0.03; // упёрлась в бок препятствия
+          if (surf.y - F.y > 0.7) { l.phi -= Math.sign(l.phi) * 0.03; l.v = 0; g.events.push('bump'); } // упёрлась в бок препятствия
+          else if (l.phi < -0.12 && surf.mat !== 'water' && surf.mat !== 'spikes') { l.pin = { x: F.x, y: surf.y }; l.rel = false; l.v = 0; g.events.push('touch'); } // сзади — просто подпорка
           else plant(g, sw, F, surf);
         } else if (surf.y > -1e8 && surf.mat !== 'water' && surf.mat !== 'spikes' && Math.abs(l.phi) <= Math.abs(g.th) + 0.05 && F.y - surf.y < 0.8 && Math.sign(l.phi) !== Math.sign(g.th)) {
           plant(g, sw, F, surf); // ступенька вниз: ходуля чуть выдвигается
@@ -416,8 +458,19 @@
       if (hit) { g.w += hit.h.type === 'rotor' ? -Math.sign(hit.h.w) * 1.2 : 0.6; die(g, hit.why); }
       const under = surface(g.lv, g.P.x, g.t, g.P.y + 0.3);
       if (under.mat === 'water' && g.P.y <= under.y + 0.05) { g.splash = true; die(g, 'Упал в воду!'); }
-      if (g.th > CFG.fallThreshold) die(g, 'Упал вперёд!');
-      else if (g.th < -CFG.fallThreshold) die(g, 'Упал назад!');
+      // опора: стопа не должна висеть над пустотой или съехать с платформы
+      if (g.lostSupport) die(g, 'Потерял опору', 'Платформа уехала из-под ноги. Переноси вес, пока стопа стоит на ней.');
+      else { const sp = surface(g.lv, g.P.x, g.t, g.P.y + 0.2); if (!g.att && (sp.y < g.P.y - 0.25)) die(g, 'Потерял опору', 'Стопа соскользнула с края. Ставь ногу дальше от края.'); }
+      if (g.th > CFG.fallThreshold) {
+        if (l.held && !l.blocked) die(g, 'Слишком сильно наклонился вперёд', 'Ты слишком долго нёс ногу. Отпускай её раньше — она сама встанет.');
+        else if (l.rel) die(g, 'Нога не успела встать', 'Ты отпустил ногу слишком высоко. Отпускай, когда она впереди внизу.');
+        else if (l.held && l.blocked) die(g, 'Тело перевалилось вперёд', 'Нога упёрлась, а тело уже ушло вперёд. Выноси ногу, когда тело над опорой.');
+        else if (l.pin) die(g, 'Не сделал шаг вовремя', 'Тело ушло вперёд, а ноги стояли. Как только нога встала — сразу шагай другой.');
+        else die(g, 'Слишком сильно наклонился вперёд', 'Не задерживайся в наклоне — сразу делай следующий шаг.');
+      } else if (g.th < -CFG.fallThreshold) {
+        if (g.lastStep && g.t - g.lastStep.t < 1.6 && g.lastStep.len > 1.75) die(g, 'Слишком далеко поставил ногу', 'Длинный шаг гасит скорость. Делай шаги короче.');
+        else die(g, 'Не перенёс вес вперёд', 'Держи заднюю ногу: она упрётся в землю и толкнёт тело вперёд.');
+      }
       if (Hh.y < -6) die(g, 'Упал в пропасть!');
       g.lv.checkpoints.forEach(([cx], k) => { if (Hh.x > cx && g.checkpoint < k) { g.checkpoint = k; g.events.push('checkpoint'); } });
       if (Hh.x >= g.lv.finish && g.state === 'play') { g.state = 'win'; g.events.push('win'); }

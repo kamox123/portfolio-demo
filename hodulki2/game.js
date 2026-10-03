@@ -9,12 +9,14 @@
 
   // ================= СОХРАНЕНИЕ =================
   const KEY = 'hodulki2-save';
-  const fresh = () => ({ coins: 0, owned: ['explorer'], stilts: ['wood'], sel: 'explorer', stilt: 'wood', done: {}, cur: [0, 0], sfx: 0.8, music: 0.5, swap: false, pads: true, shake: true, phys: {} });
+  const fresh = () => ({ tutorialDone: false, sound: true, musicOn: true, totalDeaths: 0, coins: 0, owned: ['novice'], stilts: ['wood'], sel: 'novice', stilt: 'wood', done: {}, cur: [0, 0], sfx: 0.8, music: 0.5, swap: false, pads: true, shake: true, phys: {} });
   let save = fresh();
   try { save = Object.assign(fresh(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
   const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} };
   Object.assign(CFG, save.phys || {});
-  Snd.setVolume('sfx', save.sfx); Snd.setVolume('music', save.music);
+  if (!save.owned.includes('novice')) save.owned.unshift('novice');
+  const applyVolume = () => { Snd.setVolume('sfx', save.sound ? save.sfx : 0); Snd.setVolume('music', save.musicOn ? save.music : 0); };
+  applyVolume();
   const lvKey = (w, i) => w + ':' + i;
   const levelOpen = (w, i) => (w === 0 && i === 0) || !!save.done[i > 0 ? lvKey(w, i - 1) : lvKey(w - 1, LEVELS_PER_WORLD - 1)];
   const worldOpen = (w) => levelOpen(w, 0);
@@ -30,15 +32,16 @@
   }
   window.addEventListener('resize', resize); resize();
   const cam = { x: 0, y: 2, zoom: 1 };
-  const V = { get W() { return W; }, get H() { return H; }, get PPM() { return PPM; }, cam, sx: (x) => (x - cam.x) * PPM + W * 0.36, sy: (y) => H * 0.6 - (y - cam.y) * PPM };
+  const V = { get W() { return W; }, get H() { return H; }, get PPM() { return PPM; }, cam, sx: (x) => (x - cam.x) * PPM + W * 0.36, sy: (y) => H * 0.56 - (y - cam.y) * PPM };
 
   // ================= СОСТОЯНИЕ ИГРЫ =================
-  let g = null, mode = 'menu', world = 0, level = 0, deaths = 0, particles = [], shake = 0, slowmo = 0;
+  let g = null, mode = 'menu', world = 0, level = 0, deaths = 0, particles = [], shake = 0, slowmo = 0, tut = null, floaters = [];
   const input = { hold: [false, false], back: [false, false] };
-  function startLevel(w, i, fromCp = -1) {
+  function startLevel(w, i, fromCp = -1, keep = null) {
     world = w; level = i; save.cur = [w, i]; persist();
     g = createGame(w, i, fromCp);
-    if (fromCp < 0) deaths = 0;
+    if (keep) { g.time = keep.time; g.coinsTaken = keep.coinsTaken; g.coinsGot = keep.coinsGot; } else deaths = 0;
+    if (!keep) tut = w === 0 && i === 0 && !save.tutorialDone ? { stage: 0, steps: 0, t: 0 } : null;
     const h = hipPos(g); cam.x = h.x + 1; cam.y = h.y - 1; cam.zoom = 1;
     particles = []; input.hold = [false, false]; input.back = [false, false];
     mode = 'play'; showScreen(null);
@@ -48,8 +51,26 @@
     const cps = g.lv.checkpoints;
     [$('hCp1'), $('hCp2')].forEach((el, k) => { if (cps[k]) { el.style.display = ''; el.style.left = (cps[k][0] / g.lv.finish) * 100 + '%'; el.classList.toggle('on', g.checkpoint >= k); } else el.style.display = 'none'; });
     $('hCoins').textContent = save.coins;
-    hint(w === 0 && i === 0 && fromCp < 0 ? 'Держи <b>правую</b> половину экрана — правая нога идёт вперёд.<br>Отпусти — нога встанет. Потом то же <b>левой</b>.' : '');
+    hint(''); if (tut) tutorial(tut.stage);
+    hDeaths.textContent = deaths;
     Snd.music(w);
+  }
+  // ---------- обучение на первом уровне ----------
+  const TUT = [
+    { title: 'ПРАВАЯ НОГА', text: 'Держи <b>правую</b> половину экрана — правая ходуля упрётся в землю, толкнёт тебя и пойдёт вперёд. Отпусти — она встанет.', pad: 1 },
+    { title: 'ЛЕВАЯ НОГА', text: 'Теперь держи <b>левую</b> половину. Шагай по очереди: правая, левая.', pad: 0 },
+    { title: 'ПЕРЕНЕСИ ВЕС', text: 'Задняя нога сначала упирается и толкает тело. Пронести её вперёд можно, когда тело встанет над опорой.', pad: -1 },
+    { title: 'НЕ НАКЛОНЯЙСЯ СЛИШКОМ СИЛЬНО', text: 'Долго держишь ногу — тело наклоняется. Отпускай вовремя, и нога встанет сама.', pad: -1 },
+    { title: 'ОТЛИЧНО!', text: 'Собирай монеты и дойди до финиша. Флажки по пути — контрольные точки.', pad: -1 },
+  ];
+  function tutorial(stage) {
+    if (!tut) return;
+    tut.stage = stage; tut.t = 0;
+    const s = TUT[stage];
+    if (!s) { hint(''); tut = null; document.querySelectorAll('.pad').forEach((p) => p.classList.remove('teach')); return; }
+    hint(`<div class="tut-title">${s.title}</div>${s.text}`);
+    const pads = [$('padL'), $('padR')]; if (save.swap) pads.reverse();
+    pads.forEach((p, k) => p.classList.toggle('teach', k === s.pad));
   }
   function hint(html) { const el = $('hint'); if (html) { el.innerHTML = html; el.classList.remove('hidden'); } else el.classList.add('hidden'); }
   function banner(text) { const el = $('banner'); el.textContent = text; el.classList.remove('hidden'); el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; clearTimeout(banner._t); banner._t = setTimeout(() => el.classList.add('hidden'), 1300); }
@@ -70,7 +91,7 @@
   window.addEventListener('pointerdown', (e) => {
     if (mode !== 'play' || e.target.closest('button, .modal, .screen, input, details')) return;
     e.preventDefault(); Snd.unlock();
-    touches.set(e.pointerId, { side: sideOf(e.clientX), y0: e.clientY, dy: 0 }); recomputeInput(); hint('');
+    touches.set(e.pointerId, { side: sideOf(e.clientX), y0: e.clientY, dy: 0 }); recomputeInput(); if (!tut) hint('');
   });
   window.addEventListener('pointermove', (e) => { const t = touches.get(e.pointerId); if (t) { t.dy = e.clientY - t.y0; recomputeInput(); } });
   const lift = (e) => { if (touches.delete(e.pointerId)) recomputeInput(); };
@@ -80,7 +101,7 @@
   document.addEventListener('contextmenu', (e) => e.preventDefault());
   const keyMap = { KeyA: 0, ArrowLeft: 0, KeyD: 1, ArrowRight: 1 };
   window.addEventListener('keydown', (e) => {
-    if (e.code in keyMap) { keys[keyMap[e.code]] = true; recomputeInput(); hint(''); e.preventDefault(); Snd.unlock(); }
+    if (e.code in keyMap) { keys[keyMap[e.code]] = true; recomputeInput(); if (!tut) hint(''); e.preventDefault(); Snd.unlock(); }
     if (e.code === 'KeyS' || e.code === 'ArrowDown') { keys.back = true; recomputeInput(); }
     if (e.code === 'Escape' && mode === 'play') pause();
     if (e.code === 'KeyR' && (mode === 'play' || mode === 'lose')) startLevel(world, level);
@@ -175,7 +196,7 @@
   // ---------- настройки ----------
   const PHYS_LABELS = { gravity: 'Гравитация', walkingSpeed: 'Скорость ходьбы', legLength: 'Длина ходуль', legMass: 'Вес ноги', bodyMass: 'Вес тела', friction: 'Сцепление с землёй', movementForce: 'Сила шага', balanceStrength: 'Сила равновесия', legSpeed: 'Скорость ноги', stepDistance: 'Длина шага (угол)', fallThreshold: 'Порог падения', legSag: 'Как быстро опускается нога', damping: 'Затухание' };
   function renderSettings() {
-    $('oSfx').value = save.sfx; $('oMusic').value = save.music; $('oSwap').checked = save.swap; $('oPads').checked = save.pads; $('oShake').checked = save.shake;
+    $('oSfx').value = save.sfx; $('oMusic').value = save.music; $('oSound').checked = save.sound; $('oMusicOn').checked = save.musicOn; $('oSwap').checked = save.swap; $('oPads').checked = save.pads; $('oShake').checked = save.shake;
     const rows = $('physRows'); rows.innerHTML = '';
     for (const [k, label] of Object.entries(PHYS_LABELS)) {
       const base = CFG_DEFAULT[k], l = document.createElement('label');
@@ -185,16 +206,18 @@
       rows.appendChild(l);
     }
   }
-  $('oSfx').oninput = (e) => { save.sfx = +e.target.value; Snd.setVolume('sfx', save.sfx); persist(); };
+  $('oSound').onchange = (e) => { save.sound = e.target.checked; applyVolume(); persist(); };
+  $('oMusicOn').onchange = (e) => { save.musicOn = e.target.checked; applyVolume(); persist(); };
+  $('oSfx').oninput = (e) => { save.sfx = +e.target.value; applyVolume(); persist(); };
   $('oSfx').onchange = () => Snd.sfx.coin();
-  $('oMusic').oninput = (e) => { save.music = +e.target.value; Snd.setVolume('music', save.music); persist(); };
+  $('oMusic').oninput = (e) => { save.music = +e.target.value; applyVolume(); persist(); };
   $('oSwap').onchange = (e) => { save.swap = e.target.checked; persist(); };
   $('oPads').onchange = (e) => { save.pads = e.target.checked; persist(); };
   $('oShake').onchange = (e) => { save.shake = e.target.checked; persist(); };
   $('oPhysReset').onclick = () => { Object.assign(CFG, CFG_DEFAULT); save.phys = {}; persist(); renderSettings(); toast('Физика как была'); };
   $('oReset').onclick = () => $('mConfirm').classList.remove('hidden');
   $('cNo').onclick = () => $('mConfirm').classList.add('hidden');
-  $('cYes').onclick = () => { const keep = { sfx: save.sfx, music: save.music }; save = Object.assign(fresh(), keep); Object.assign(CFG, CFG_DEFAULT); persist(); $('mConfirm').classList.add('hidden'); toast('Прогресс сброшен'); toMenu(); };
+  $('cYes').onclick = () => { const keep = { sfx: save.sfx, music: save.music, sound: save.sound, musicOn: save.musicOn }; save = Object.assign(fresh(), keep); Object.assign(CFG, CFG_DEFAULT); persist(); $('mConfirm').classList.add('hidden'); toast('Прогресс сброшен'); toMenu(); };
 
   // ---------- пауза, победа, поражение ----------
   function pause() { if (mode !== 'play') return; mode = 'pause'; $('mPause').classList.remove('hidden'); $('pCheckpoint').classList.toggle('hidden', g.checkpoint < 0); }
@@ -218,24 +241,29 @@
     const reward = 20 + (world * LEVELS_PER_WORLD + level) * 4;
     save.coins += reward;
     const prev = save.done[lvKey(world, level)];
-    save.done[lvKey(world, level)] = { stars: Math.max(stars, prev ? prev.stars : 0), time: Math.min(g.time, prev ? prev.time : 1e9) };
+    const record = !prev || g.time < prev.time;
+    save.done[lvKey(world, level)] = { stars: Math.max(stars, prev ? prev.stars : 0), time: Math.min(g.time, prev ? prev.time : 1e9), deaths: Math.min(deaths, prev && prev.deaths !== undefined ? prev.deaths : 1e9) };
+    if (world === 0 && level === 0) save.tutorialDone = true;
+    tut = null; hint('');
     const nowOpenWorld = level === LEVELS_PER_WORLD - 1 && world + 1 < WORLDS.length;
     persist();
     setTimeout(() => {
       $('wStars').innerHTML = [0, 1, 2].map((i) => `<span class="${i < stars ? '' : 'off'}">⭐</span>`).join('');
-      $('wText').innerHTML = `Монеты на уровне: <b>${got}/${total}</b> · награда <b>+${reward}</b> 🪙<br>Время: <b>${g.time.toFixed(1)} с</b>${deaths ? ` · падений: ${deaths}` : ' · без единого падения!'}${nowOpenWorld ? `<br><b>Открыт новый мир: ${WORLDS[world + 1].name}!</b>` : ''}`;
+      const best = save.done[lvKey(world, level)];
+      $('wText').innerHTML = `<div class="stats"><div><small>Время</small><b>${g.time.toFixed(1)} с</b>${record ? '<i>рекорд!</i>' : `<i>лучшее ${best.time.toFixed(1)} с</i>`}</div><div><small>Падения</small><b>${deaths}</b>${deaths ? '' : '<i>ни одного!</i>'}</div><div><small>Монеты</small><b>${got}/${total}</b><i>+${reward} награда</i></div></div>${nowOpenWorld ? `<b class="newworld">Открыт новый мир: ${WORLDS[world + 1].name}!</b>` : ''}`;
       $('wNext').textContent = world === WORLDS.length - 1 && level === LEVELS_PER_WORLD - 1 ? 'В меню' : 'Дальше ▶';
       $('mWin').classList.remove('hidden'); $('hud').classList.add('hidden'); $('pads').classList.add('hidden');
       if (nowOpenWorld) Snd.sfx.unlock();
     }, 1600);
   }
   function onLose() {
-    mode = 'lose'; deaths++; lastCp = g.checkpoint;
-    setTimeout(() => {
-      $('lText').textContent = g.why;
-      $('lCheckpoint').classList.toggle('hidden', lastCp < 0);
-      $('mLose').classList.remove('hidden'); $('hud').classList.add('hidden'); $('pads').classList.add('hidden');
-    }, 1400);
+    mode = 'lose'; deaths++; lastCp = g.checkpoint; save.totalDeaths++; persist();
+    $('hDeaths').textContent = deaths;
+    const card = $('fallCard'); card.innerHTML = `<b>${g.why}</b>${g.tip ? `<br><span>💡 ${g.tip}</span>` : ''}<br><small>${lastCp >= 0 ? 'Возвращаемся на контрольную точку…' : 'Начинаем сначала…'}</small>`;
+    card.classList.remove('hidden'); hint('');
+    const keep = { time: g.time, coinsTaken: g.coinsTaken, coinsGot: g.coinsGot };
+    clearTimeout(onLose._t);
+    onLose._t = setTimeout(() => { card.classList.add('hidden'); if (mode === 'lose') startLevel(world, level, lastCp, keep); }, g.tip ? 2600 : 1700);
   }
 
   // ================= ЧАСТИЦЫ =================
@@ -272,10 +300,14 @@
       step(g, 1 / 60, hold, back);
       for (const e of g.events) {
         if (mode !== 'play' && mode !== 'win' && mode !== 'lose') continue;
+        if (e === 'scrape') Snd.sfx.scrape();
+        if (e === 'bump') Snd.sfx.bump();
+        if (e === 'touch') Snd.sfx.touch();
+        if (e === 'land' && tut) { tut.steps++; if (tut.stage === 0 && g.s === 1) tutorial(1); else if (tut.stage === 1 && g.s === 0) tutorial(2); else if (tut.stage === 2 && tut.steps >= 5) tutorial(3); else if (tut.stage === 3 && tut.steps >= 8) tutorial(4); else if (tut.stage === 4 && tut.steps >= 10) tutorial(5); }
         if (e === 'land') { Snd.sfx.step(); const f = g.P; burst(f.x, f.y + 0.05, 6, ['rgba(255,255,255,.8)', 'rgba(200,180,150,.8)'], 0.5, 1.5, 0.05); }
         if (e === 'lift') Snd.sfx.lift();
         if (e === 'bounce') { Snd.sfx.bounce(); burst(g.P.x, g.P.y, 12, ['#ff6fb5', '#fff'], 1, 3); }
-        if (e === 'coin') { Snd.sfx.coin(); save.coins++; persist(); $('hCoins').textContent = save.coins; const h = hipPos(g); burst(h.x, h.y + 1.5, 10, ['#ffcf3f', '#fff3a0'], 0.8, 2); }
+        if (e === 'coin') { Snd.sfx.coin(); save.coins++; persist(); $('hCoins').textContent = save.coins; const h = hipPos(g); burst(h.x, h.y + 1.5, 10, ['#ffcf3f', '#fff3a0'], 0.8, 2); floaters.push({ x: h.x, y: h.y + 2, t: 0, text: '+1' }); $('hCoinChip').classList.remove('bump'); void $('hCoinChip').offsetWidth; $('hCoinChip').classList.add('bump'); }
         if (e === 'checkpoint') { Snd.sfx.checkpoint(); banner('Контрольная точка!'); const cp = g.lv.checkpoints[g.checkpoint]; burst(cp[0], cp[1] + 2.3, 20, ['#3fbf5a', '#fff', '#ffcf3f'], 1.2, 3); [$('hCp1'), $('hCp2')].forEach((el, k) => el.classList.toggle('on', g.checkpoint >= k)); }
         if (e === 'fall') { if (g.splash) Snd.sfx.splash(); else Snd.sfx.fall(); if (save.shake) shake = 0.45; slowmo = 0.5; onLose(); if (g.splash) burst(g.P.x, g.P.y, 30, ['#9fdcff', '#fff'], 1.4, 4); }
         if (e === 'win') { Snd.sfx.win(); const h = hipPos(g); burst(h.x, h.y + 2, 90, ['#ffcf3f', '#e5483a', '#3fbf5a', '#3a8bff', '#fff', '#ff6fb5'], 2.2, 5); onWin(); }
@@ -309,8 +341,37 @@
       return c > 0.05 && f.y < gy && gy > -1e8 ? Math.max(0.4, (h.y - gy) / c) : g.L; // нога не уходит под землю
     });
     const mood = g.state === 'dead' ? 'dead' : g.state === 'win' ? 'win' : Math.abs(g.th) > 0.65 ? 'scared' : 'idle';
-    const hl = mode === 'play' ? (input.hold[0] ? 0 : input.hold[1] ? 1 : -1) : -1;
-    Art.drawCharacter(ctx, charOf(), stiltOf(), { hx: V.sx(h.x), hy: V.sy(h.y), ta: g.ta, a: [legAngle(g, 0), legAngle(g, 1)], L: Ls, t, mood, hl }, PPM);
+    const playing = mode === 'play' || mode === 'lose';
+    // опорная нога — зелёное кольцо под стопой
+    if (playing && g.state === 'play') {
+      const sx0 = V.sx(g.P.x), sy0 = V.sy(g.P.y);
+      ctx.strokeStyle = 'rgba(80,255,140,.9)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(sx0, sy0, PPM * 0.32, PPM * 0.1, 0, 0, 7); ctx.stroke();
+      ctx.fillStyle = 'rgba(80,255,140,.18)'; ctx.fill();
+    }
+    Art.drawCharacter(ctx, charOf(), stiltOf(), { hx: V.sx(h.x), hy: V.sy(h.y), ta: g.ta, a: [legAngle(g, 0), legAngle(g, 1)], L: Ls, t, mood, legCol: ['#4aa3ff', '#ff8a2a'], held: playing ? input.hold : [false, false], stance: g.s, speed: g.w }, PPM);
+    // нога в движении — стрелка, куда она идёт
+    if (playing && g.state === 'play') {
+      const sw = 1 - g.s, lg = g.legs[sw];
+      if (lg.held) {
+        const f = footPos(g, sw), x = V.sx(f.x), y = V.sy(f.y), a = legAngle(g, sw), dir = lg.back ? -1 : 1;
+        const col = sw === 0 ? '#4aa3ff' : '#ff8a2a', r = PPM * 0.55;
+        ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 4; ctx.lineCap = 'round';
+        const hx = V.sx(h.x), hy = V.sy(h.y), R = Math.hypot(x - hx, y - hy);
+        const a0 = Math.atan2(y - hy, x - hx), a1 = a0 - dir * 0.35;
+        ctx.beginPath(); ctx.arc(hx, hy, R, a0, a1, dir > 0); ctx.stroke();
+        const ex = hx + Math.cos(a1) * R, ey = hy + Math.sin(a1) * R, tg = a1 - dir * Math.PI / 2;
+        ctx.beginPath(); ctx.moveTo(ex + Math.cos(tg) * 12, ey + Math.sin(tg) * 12); ctx.lineTo(ex + Math.cos(tg + 2.5) * 10, ey + Math.sin(tg + 2.5) * 10); ctx.lineTo(ex + Math.cos(tg - 2.5) * 10, ey + Math.sin(tg - 2.5) * 10); ctx.fill();
+        if (lg.blocked) { ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.font = '800 13px Rubik,sans-serif'; ctx.fillText('упор', x - 16, y + 22); }
+        void r; void a;
+      }
+    }
+    // всплывающие «+1»
+    floaters = floaters.filter((fl) => (fl.t += dt) < 0.9);
+    for (const fl of floaters) { ctx.globalAlpha = 1 - fl.t / 0.9; ctx.fillStyle = '#ffcf3f'; ctx.strokeStyle = '#6b3a00'; ctx.lineWidth = 3; ctx.font = `900 ${Math.round(PPM * 0.45)}px Rubik,sans-serif`; const x = V.sx(fl.x), y = V.sy(fl.y + fl.t * 1.2); ctx.strokeText(fl.text, x, y); ctx.fillText(fl.text, x, y); }
+    ctx.globalAlpha = 1;
+    // обучение: сильный наклон
+    if (tut && tut.stage >= 2 && tut.stage < 3 && Math.abs(g.th) > 0.55) tutorial(3);
     if (g.state === 'dead' && g.deadT > 0.5) { const hd = headPos(g); Art.drawDizzy(ctx, V.sx(hd.x), V.sy(hd.y + 0.6), PPM, t); }
     drawParticles(dt);
     requestAnimationFrame(frame);

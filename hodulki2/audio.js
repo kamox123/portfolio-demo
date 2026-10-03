@@ -35,6 +35,8 @@
     lift: () => noise(0.12, 0.08, 2500, 'highpass'),
     coin: () => { tone(1046, 0.08, 'square', 0.06); tone(1568, 0.15, 'square', 0.06, 0, 0.07); },
     bump: () => { tone(160, 0.15, 'triangle', 0.2, -60); noise(0.1, 0.2, 700); },
+    scrape: () => noise(0.18, 0.18, 1200, 'bandpass'),
+    touch: () => { noise(0.05, 0.25, 600); tone(110, 0.05, 'sine', 0.12); },
     fall: () => { tone(420, 0.6, 'sawtooth', 0.07, -340); noise(0.35, 0.35, 300); setTimeout(() => noise(0.2, 0.4, 200), 300); },
     splash: () => { noise(0.5, 0.4, 1500, 'bandpass'); tone(300, 0.3, 'sine', 0.1, -200); },
     bounce: () => tone(220, 0.3, 'sine', 0.25, 500),
