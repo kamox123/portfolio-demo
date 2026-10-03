@@ -9,7 +9,7 @@
 
   // ================= СОХРАНЕНИЕ =================
   const KEY = 'hodulki2-save';
-  const fresh = () => ({ vibe: true, tutorialDone: false, sound: true, musicOn: true, totalDeaths: 0, coins: 0, owned: ['novice'], stilts: ['wood'], sel: 'novice', stilt: 'wood', done: {}, cur: [0, 0], sfx: 0.8, music: 0.5, swap: false, pads: true, shake: true, phys: {} });
+  const fresh = () => ({ vibe: true, tutorialDone: false, sound: true, musicOn: true, totalDeaths: 0, coins: 0, owned: ['novice'], stilts: ['wood'], sel: 'novice', stilt: 'wood', done: {}, cur: [0, 0], sfx: 0.8, music: 0.5, swap: false, pads: true, shake: true, phys: {}, gestureDebug: false });
   let save = fresh();
   try { save = Object.assign(fresh(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
   const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} };
@@ -113,19 +113,29 @@
     Object.assign(aim, { on: true, id: e.pointerId, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, dist: 0, up: 0, t0: performance.now() });
   });
   window.addEventListener('pointermove', (e) => { if (aim.on && e.pointerId === aim.id) { aim.dx = e.clientX - aim.x0; aim.dy = e.clientY - aim.y0; updateAim(); } });
+  function showGesture(kind, vert, horiz, speedPxS) {
+    if (!save.gestureDebug) return;
+    $('gestureDebug').textContent = `${kind}\nвверх:${vert.toFixed(0)}px  вбок:${horiz.toFixed(0)}px  скорость:${speedPxS.toFixed(0)}px/с`;
+  }
   const release = (e) => {
     if (!aim.on || (e && e.pointerId !== aim.id)) return;
     aim.on = false;
     if (mode !== 'play') return;
     const s = swipeScale(), vert = -aim.dy, horiz = Math.abs(aim.dx);
     const elapsed = Math.max(0.03, (performance.now() - aim.t0) / 1000);
+    const speedPxS = vert / elapsed;
     // прыжок: быстрый ("флик") свайп почти строго вверх; обычный высокий шаг обычно медленнее и с горизонталью
-    const isJump = !g.swing && !g.jump && vert > s * 0.16 && vert > horiz * 1.5 && vert / elapsed > s * 2.6;
+    const isJump = !g.swing && !g.jump && vert > s * 0.16 && vert > horiz * 1.5 && speedPxS > s * 2.6;
+    const isHighStep = !isJump && aim.up >= 0.15;
     if (isJump) {
       const power = Math.max(0, Math.min(1, (vert / s - 0.16) / 0.55));
       const drift = Math.sign(aim.dx) * Math.min(CFG.jumpMaxDrift, (horiz / s) * 3.0);
       pendingJump = { power, drift }; if (!tut) hint('');
-    } else if (Math.abs(aim.dist) >= 0.15 || aim.up >= 0.15) { pendingCmd = { dist: aim.dist, up: aim.up }; if (!tut) hint(''); }
+      showGesture('JUMP', vert, horiz, speedPxS);
+    } else if (Math.abs(aim.dist) >= 0.15 || aim.up >= 0.15) {
+      pendingCmd = { dist: aim.dist, up: aim.up }; if (!tut) hint('');
+      showGesture(isHighStep ? 'HIGH STEP' : 'STEP', vert, horiz, speedPxS);
+    } else showGesture('(слишком слабо, игнор)', vert, horiz, speedPxS);
   };
   window.addEventListener('pointerup', release); window.addEventListener('pointercancel', release);
   window.addEventListener('blur', () => { aim.on = false; });
@@ -139,7 +149,7 @@
     const d = e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'Space' ? 1 : e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : 0;
     if (d && mode === 'play' && !kb.dir) { kb.dir = d; kb.t0 = performance.now(); e.preventDefault(); Snd.unlock(); Object.assign(aim, { on: true, id: 'kb', dx: 0, dy: 0 }); }
     if (e.code === 'ArrowUp' || e.code === 'KeyW') {
-      if (!kb.dir && mode === 'play' && g && !g.swing && !g.jump) { pendingJump = { power: 0.6, drift: 0 }; Snd.unlock(); }
+      if (!kb.dir && mode === 'play' && g && !g.swing && !g.jump) { pendingJump = { power: 0.6, drift: 0 }; Snd.unlock(); showGesture('JUMP (клавиша ↑)', 0, 0, 0); }
       else kb.up = true;
     }
     if (e.code === 'Escape' && mode === 'play') pause();
@@ -294,7 +304,7 @@
   // ---------- настройки ----------
   const PHYS_LABELS = { gravity: 'Гравитация (падение)', legLength: 'Длина ходуль', maxSpread: 'Насколько широко можно расставить ноги', maxStep: 'Самый длинный шаг', swingTime: 'Время шага', swingPerMeter: 'Замедление длинного шага', stepLift: 'Высота подъёма ноги', edgeSlip: 'Опасная зона у края', maxRise: 'На сколько можно шагнуть вверх', maxDrop: 'На сколько можно шагнуть вниз', bodyLag: 'Запаздывание тела', sway: 'Раскачивание тела', wobbleMargin: 'Запас перед потерей равновесия', wobbleTime: 'Время на восстановление баланса', jumpForce: 'Сила слабого прыжка (подскок)', jumpForceMax: 'Сила сильного прыжка', jumpGravity: 'Гравитация в прыжке', jumpMaxDrift: 'Горизонтальная скорость в прыжке', jumpMaxDrop: 'На сколько ниже взлёта можно приземлиться', jumpFailSpeed: 'Скорость удара — порог провала', jumpWobbleSpeed: 'Скорость удара — порог шаткого приземления' };
   function renderSettings() {
-    $('oSfx').value = save.sfx; $('oMusic').value = save.music; $('oSound').checked = save.sound; $('oMusicOn').checked = save.musicOn; $('oShake').checked = save.shake; $('oVibe').checked = save.vibe;
+    $('oSfx').value = save.sfx; $('oMusic').value = save.music; $('oSound').checked = save.sound; $('oMusicOn').checked = save.musicOn; $('oShake').checked = save.shake; $('oVibe').checked = save.vibe; $('oGestureDebug').checked = save.gestureDebug;
     const rows = $('physRows'); rows.innerHTML = '';
     for (const [k, label] of Object.entries(PHYS_LABELS)) {
       const base = CFG_DEFAULT[k], l = document.createElement('label');
@@ -311,6 +321,7 @@
   $('oMusic').oninput = (e) => { save.music = +e.target.value; applyVolume(); persist(); };
 
   $('oShake').onchange = (e) => { save.shake = e.target.checked; persist(); };
+  $('oGestureDebug').onchange = (e) => { save.gestureDebug = e.target.checked; persist(); $('gestureDebug').classList.toggle('hidden', !save.gestureDebug); };
   $('oVibe').onchange = (e) => { save.vibe = e.target.checked; persist(); buzz(30); };
   $('oPhysReset').onclick = () => { Object.assign(CFG, CFG_DEFAULT); save.phys = {}; persist(); renderSettings(); toast('Физика как была'); };
   $('oReset').onclick = () => $('mConfirm').classList.remove('hidden');
@@ -573,6 +584,7 @@
   // приложение без интернета (только когда игра открыта с сайта, а не из файла)
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
   applyIcons();
+  $('gestureDebug').classList.toggle('hidden', !save.gestureDebug);
   toMenu();
   if (m) startLevel(+m[1] - 1, +m[2] - 1);
   requestAnimationFrame(frame);

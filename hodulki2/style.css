@@ -131,6 +131,9 @@ summary { font-weight: 900; cursor: pointer; }
 html, body { max-width: 100vw; overscroll-behavior: none; }
 @media (min-width: 900px) { .pad span { width: 72px; height: 72px; } .hint { font-size: 20px; } }
 
+/* debug: что только что распознано — STEP / HIGH STEP / JUMP */
+.gdbg { position: fixed; left: 8px; top: max(8px, env(safe-area-inset-top)); z-index: 5; font: 900 12px/1.3 monospace; color: #baffc8; background: rgba(0,0,0,.6); padding: 5px 9px; border-radius: 8px; pointer-events: none; white-space: pre; }
+
 /* значок активной ноги (маленький, не мешает) */
 .legchip { position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 3; display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(10, 8, 30, .45); pointer-events: none; }
 .legchip span { width: 30px; height: 26px; border-radius: 10px; display: grid; place-items: center; font-weight: 900; font-size: 14px; opacity: .35; transition: all .15s; }
