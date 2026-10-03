@@ -81,7 +81,7 @@
     { title: 'ДЛИНА СВАЙПА = ДЛИНА ШАГА', text: 'Короткий свайп — маленький шаг, длинный — большой. Метка показывает, куда встанет нога.' },
     { title: 'НЕ ШАГАЙ СЛИШКОМ ШИРОКО', text: 'Если ноги окажутся слишком далеко друг от друга — они разъедутся. И не ставь ногу на самый край.' },
     { title: 'ВЕДИ ЧУТЬ ВВЕРХ', text: 'Свайп вправо-вверх поднимает ногу выше — так перешагивают брёвна и ступеньки.' },
-    { title: 'А ТЕПЕРЬ ПРЫГНИ', text: 'Быстрый резкий свайп строго вверх, без наклона в сторону, — это настоящий прыжок: обе ходули оторвутся от земли. Попробуй!' },
+    { title: 'А ТЕПЕРЬ ПОПРОБУЙ ХОП', text: 'Коснись экрана и задержи палец почти на месте (не веди в сторону) — появится растущее кольцо. Отпусти — прыжок! Держи дольше для прыжка повыше.' },
     { title: 'ОТЛИЧНО!', text: 'Собирай монеты и дойди до финиша. Флажки по пути — контрольные точки.' },
   ];
   function tutorial(stage) {
@@ -96,68 +96,77 @@
   function toast(text) { const el = $('toast'); el.textContent = text; el.classList.remove('hidden'); el.style.opacity = 1; clearTimeout(toast._t); toast._t = setTimeout(() => { el.style.opacity = 0; setTimeout(() => el.classList.add('hidden'), 400); }, 1800); }
 
   // ================= УПРАВЛЕНИЕ =================
-  // Свайп в любом месте экрана: вправо — шаг вперёд, влево — назад, длина свайпа — длина шага,
-  // вверх — нога поднимается выше (перешагнуть препятствие). Отпустил палец — нога летит к метке.
-  // Отдельно: быстрый резкий свайп строго вверх (почти без горизонтали) — это НАСТОЯЩИЙ ПРЫЖОК,
-  // а не высокий шаг: распознаём его по скорости и «вертикальности» свайпа, а не по длине.
+  // Один общий жест для всего: веди палец в любом месте экрана — вправо/влево меняет длину и
+  // направление шага, вверх добавляет высоту (перешагнуть препятствие). Отпустил — нога шагает.
+  //
+  // ХОП — отдельное, принципиально другое действие: ТАП/УДЕРЖАНИЕ на месте (почти без сдвига
+  // пальца), а не свайп. Чем дольше держишь — тем выше прыжок (0.6с — максимум). Отпустил — прыжок
+  // стартует. Это специально НЕ «флик строго вверх» (это путали с обычным высоким шагом) — тут
+  // работает только одно простое правило: «палец почти не сдвинулся» = хоп, «сдвинулся» = шаг.
+  // Порог движения маленький и один, никаких углов/скоростей считать не нужно.
   function swipeScale() { return Math.max(180, Math.min(W, H) * 0.62); }
+  const HOP_DEADZONE = 16;   // px — если палец сдвинулся меньше этого, жест считается хопом, не шагом
+  const HOP_CHARGE_T = 0.6;  // с — столько нужно удерживать для максимальной высоты хопа
   function updateAim() {
     const s = swipeScale();
     aim.dist = Math.sign(aim.dx) * Math.min(CFG.maxStep, (Math.abs(aim.dx) / s) * 3.2);
     aim.up = Math.max(0, Math.min(1, -aim.dy / (s * 0.55)));
+    aim.maxMove = Math.max(aim.maxMove || 0, Math.hypot(aim.dx, aim.dy));
   }
   let pendingJump = null;
   window.addEventListener('pointerdown', (e) => {
     if (mode !== 'play' || aim.on || e.target.closest('button, .modal, .screen, input, details')) return;
     e.preventDefault(); Snd.unlock();
-    Object.assign(aim, { on: true, id: e.pointerId, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, dist: 0, up: 0, t0: performance.now() });
+    Object.assign(aim, { on: true, id: e.pointerId, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, dist: 0, up: 0, maxMove: 0, t0: performance.now() });
   });
   window.addEventListener('pointermove', (e) => { if (aim.on && e.pointerId === aim.id) { aim.dx = e.clientX - aim.x0; aim.dy = e.clientY - aim.y0; updateAim(); } });
-  function showGesture(kind, vert, horiz, speedPxS) {
+  function showGesture(kind, extra) {
     if (!save.gestureDebug) return;
-    $('gestureDebug').textContent = `${kind}\nвверх:${vert.toFixed(0)}px  вбок:${horiz.toFixed(0)}px  скорость:${speedPxS.toFixed(0)}px/с`;
+    $('gestureDebug').textContent = extra ? `${kind}\n${extra}` : kind;
+  }
+  function doHop(heldSeconds, source) {
+    const power = Math.max(0, Math.min(1, heldSeconds / HOP_CHARGE_T));
+    pendingJump = { power, drift: 0 };
+    showGesture('HOP' + (source ? ' (' + source + ')' : ''), `удержание: ${(heldSeconds * 1000).toFixed(0)}мс → сила ${(power * 100).toFixed(0)}%`);
   }
   const release = (e) => {
     if (!aim.on || (e && e.pointerId !== aim.id)) return;
     aim.on = false;
     if (mode !== 'play') return;
-    const s = swipeScale(), vert = -aim.dy, horiz = Math.abs(aim.dx);
-    const elapsed = Math.max(0.03, (performance.now() - aim.t0) / 1000);
-    const speedPxS = vert / elapsed;
-    // прыжок: быстрый ("флик") свайп почти строго вверх; обычный высокий шаг обычно медленнее и с горизонталью
-    const isJump = !g.swing && !g.jump && vert > s * 0.16 && vert > horiz * 1.5 && speedPxS > s * 2.6;
-    const isHighStep = !isJump && aim.up >= 0.15;
-    if (isJump) {
-      const power = Math.max(0, Math.min(1, (vert / s - 0.16) / 0.55));
-      const drift = Math.sign(aim.dx) * Math.min(CFG.jumpMaxDrift, (horiz / s) * 3.0);
-      pendingJump = { power, drift }; if (!tut) hint('');
-      showGesture('JUMP', vert, horiz, speedPxS);
-    } else if (Math.abs(aim.dist) >= 0.15 || aim.up >= 0.15) {
+    const heldS = (performance.now() - aim.t0) / 1000;
+    const canHop = !g.swing && !g.jump;
+    if (canHop && (aim.maxMove || 0) < HOP_DEADZONE) { doHop(heldS, 'тап по экрану'); return; }
+    if (Math.abs(aim.dist) >= 0.15 || aim.up >= 0.15) {
       pendingCmd = { dist: aim.dist, up: aim.up }; if (!tut) hint('');
-      showGesture(isHighStep ? 'HIGH STEP' : 'STEP', vert, horiz, speedPxS);
-    } else showGesture('(слишком слабо, игнор)', vert, horiz, speedPxS);
+      showGesture(aim.up >= 0.15 ? 'HIGH STEP' : 'STEP', `вбок:${aim.dist.toFixed(2)}м  вверх:${(aim.up * 100).toFixed(0)}%`);
+    } else showGesture('(слишком слабо, игнор)');
   };
   window.addEventListener('pointerup', release); window.addEventListener('pointercancel', release);
   window.addEventListener('blur', () => { aim.on = false; });
   document.addEventListener('touchstart', (e) => { if (!e.target.closest('button, .modal, .screen, input, details, summary')) e.preventDefault(); }, { passive: false });
   document.addEventListener('contextmenu', (e) => e.preventDefault());
-  // клавиатура: держи → (или D) — шаг растёт; ↑ — выше; отпусти — шаг. ← (A) — шаг назад.
-  // ↑/W нажатая САМА ПО СЕБЕ (без зажатого направления) — отдельный прыжок, а не высокий шаг.
-  const kb = { dir: 0, t0: 0, up: false };
+  // клавиатура: держи → (или D) — шаг растёт; ↑ во время шага — выше; отпусти — шаг. ← (A) — назад.
+  // Пробел или ↑ САМИ ПО СЕБЕ (без зажатого ←/→) — хоп: держи дольше для более высокого прыжка,
+  // та же физическая модель, что и на телефоне (doHop).
+  const kb = { dir: 0, t0: 0, up: false, hopT0: 0, hopping: false };
   window.addEventListener('keydown', (e) => {
     if (e.repeat) return;
-    const d = e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'Space' ? 1 : e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : 0;
+    const d = e.code === 'ArrowRight' || e.code === 'KeyD' ? 1 : e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : 0;
     if (d && mode === 'play' && !kb.dir) { kb.dir = d; kb.t0 = performance.now(); e.preventDefault(); Snd.unlock(); Object.assign(aim, { on: true, id: 'kb', dx: 0, dy: 0 }); }
-    if (e.code === 'ArrowUp' || e.code === 'KeyW') {
-      if (!kb.dir && mode === 'play' && g && !g.swing && !g.jump) { pendingJump = { power: 0.6, drift: 0 }; Snd.unlock(); showGesture('JUMP (клавиша ↑)', 0, 0, 0); }
-      else kb.up = true;
+    if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') {
+      e.preventDefault();
+      if (!kb.dir && mode === 'play' && g && !g.swing && !g.jump && !kb.hopping) { kb.hopping = true; kb.hopT0 = performance.now(); Snd.unlock(); }
+      else if (kb.dir) kb.up = true; // во время уже начатого шага ↑ по-прежнему поднимает ногу выше
     }
     if (e.code === 'Escape' && mode === 'play') pause();
     if (e.code === 'KeyR' && (mode === 'play' || mode === 'lose')) startLevel(world, level);
   });
   window.addEventListener('keyup', (e) => {
-    if (e.code === 'ArrowUp' || e.code === 'KeyW') kb.up = false;
-    const d = e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'Space' ? 1 : e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : 0;
+    if (e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') {
+      kb.up = false;
+      if (kb.hopping) { kb.hopping = false; if (mode === 'play') doHop((performance.now() - kb.hopT0) / 1000, 'клавиша'); }
+    }
+    const d = e.code === 'ArrowRight' || e.code === 'KeyD' ? 1 : e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : 0;
     if (d && d === kb.dir) { kb.dir = 0; release({ pointerId: 'kb' }); }
   });
   function keyboardAim() {
@@ -514,6 +523,21 @@
       ctx.beginPath(); ctx.moveTo(mx, my - PPM * 0.16); ctx.lineTo(mx - PPM * 0.16, my - PPM * 0.48); ctx.lineTo(mx + PPM * 0.16, my - PPM * 0.48); ctx.closePath(); ctx.fillStyle = actCol; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5; ctx.stroke();
       const lbl = Math.abs(aim.dist).toFixed(1) + ' м'; ctx.font = `900 ${Math.round(PPM * 0.3)}px Rubik,sans-serif`; ctx.textAlign = 'center';
       ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(30,20,10,.75)'; ctx.strokeText(lbl, mx, my - PPM * 0.62); ctx.fillStyle = '#fff'; ctx.fillText(lbl, mx, my - PPM * 0.62); ctx.textAlign = 'left';
+    }
+    // заряд хопа — видно прямо под пальцем (или сверху экрана для клавиатуры), растёт, пока держишь
+    if (playing && g.state === 'play' && !g.swing && !g.jump) {
+      let chargeFrac = -1, cx = 0, cy = 0;
+      if (aim.on && (aim.maxMove || 0) < HOP_DEADZONE) { chargeFrac = Math.min(1, (performance.now() - aim.t0) / 1000 / HOP_CHARGE_T); cx = aim.x0; cy = aim.y0; }
+      else if (kb.hopping) { chargeFrac = Math.min(1, (performance.now() - kb.hopT0) / 1000 / HOP_CHARGE_T); cx = W / 2; cy = H * 0.22; }
+      if (chargeFrac >= 0) {
+        const r0 = 22, r1 = 22 + 20 * chargeFrac;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, r0, 0, 7); ctx.stroke();
+        ctx.strokeStyle = chargeFrac >= 1 ? '#ffd34d' : '#baffc8'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.arc(cx, cy, r1, -Math.PI / 2, -Math.PI / 2 + chargeFrac * Math.PI * 2); ctx.stroke();
+        if (chargeFrac >= 1) { ctx.fillStyle = 'rgba(255,211,77,.35)'; ctx.beginPath(); ctx.arc(cx, cy, r1 + 6 + Math.sin(t * 16) * 3, 0, 7); ctx.fill(); }
+        ctx.restore();
+      }
     }
     // опорная нога — мягкое зелёное кольцо (в прыжке опорной ноги нет — обе в воздухе)
     if (playing && g.state === 'play' && !g.jump) {

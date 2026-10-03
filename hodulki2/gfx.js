@@ -353,20 +353,26 @@
       for (const [x, y, rad] of blobs) { const g = c.createRadialGradient(x - rad * 0.3, y - rad * 0.4, 2, x, y, rad); g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#e3f1fb'); c.fillStyle = g; c.beginPath(); c.arc(x, y, rad, 0, 7); c.fill(); }
     });
   }
-  // полоса далёких гор (повторяется)
-  function mountainStrip(seed, col1, col2, snow, height) {
-    return sprite('mount' + seed, 1600, height, (c, W, H) => {
-      const r = rng(seed); const peaks = []; for (let x = -200; x <= W + 200; x += 180 + r() * 160) peaks.push([x, H * (0.15 + r() * 0.4)]);
-      c.beginPath(); c.moveTo(0, H);
-      for (let i = 0; i < peaks.length - 1; i++) { const [x, y] = peaks[i], [x2] = peaks[i + 1]; c.lineTo(x, y); c.lineTo((x + x2) / 2, H * (0.55 + r() * 0.2)); }
-      c.lineTo(W, H); c.closePath();
-      const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, col1); g.addColorStop(1, col2); c.fillStyle = g; c.fill();
-      if (snow) { c.fillStyle = 'rgba(255,255,255,.85)'; for (const [x, y] of peaks) { c.beginPath(); c.moveTo(x, y); c.lineTo(x - 40, y + 45); c.lineTo(x - 14, y + 36); c.lineTo(x, y + 50); c.lineTo(x + 16, y + 34); c.lineTo(x + 40, y + 45); c.closePath(); c.fill(); } }
-      // свет слева: светлые склоны
-      c.globalCompositeOperation = 'source-atop'; c.fillStyle = 'rgba(255,255,255,.12)';
-      for (const [x, y] of peaks) { c.beginPath(); c.moveTo(x, y); c.lineTo(x - 200, H); c.lineTo(x, H); c.closePath(); c.fill(); }
-      c.globalCompositeOperation = 'source-over';
-    });
+  // Дальние горы леса — НЕ спрайт-тайл (прежний mountainStrip замощал случайный силуэт, у которого
+  // левый и правый край никогда не совпадали — отсюда были видны швы-«полосы» на стыках плиток).
+  // Вместо этого силуэт считается как непрерывная функция от экранной позиции + сдвига камеры —
+  // швов нет в принципе, потому что нет повторяющихся плиток, форма просто одна на весь экран.
+  function forestMountainRidge(ctx, V, k, baseY, amp, per, col1, col2, seed) {
+    const W = V.W, H = V.H, off = V.cam.x * V.PPM * k;
+    ctx.beginPath(); ctx.moveTo(-4, H);
+    for (let px = -20; px <= W + 20; px += 14) {
+      const wx = (px + off) / per;
+      const y = baseY - (Math.sin(wx + seed) * 0.5 + Math.sin(wx * 2.3 + 1.7 + seed) * 0.25 + Math.sin(wx * 0.41 + 3.1 + seed) * 0.6) * amp;
+      ctx.lineTo(px, y);
+    }
+    ctx.lineTo(W + 4, H); ctx.closePath();
+    const g = ctx.createLinearGradient(0, baseY - amp * 1.5, 0, baseY); g.addColorStop(0, col1); g.addColorStop(1, col2);
+    ctx.fillStyle = g; ctx.fill();
+    // свет слева — ровный горизонтальный градиент поверх силуэта; не зависит от тайлов, швов не даёт
+    ctx.save(); ctx.clip();
+    const lg = ctx.createLinearGradient(0, 0, W, 0); lg.addColorStop(0, 'rgba(255,255,255,.16)'); lg.addColorStop(0.55, 'rgba(255,255,255,0)'); lg.addColorStop(1, 'rgba(10,20,30,.07)');
+    ctx.fillStyle = lg; ctx.fillRect(0, baseY - amp * 1.5, W, amp * 1.5 + (H - (baseY - amp * 1.5)));
+    ctx.restore();
   }
   // полоса дальнего леса (силуэты крон)
   function forestStrip(seed, col, height) {
@@ -418,10 +424,10 @@
       ctx.globalAlpha = 0.95; ctx.drawImage(spr, x, y, spr.width * sc, spr.height * sc); ctx.globalAlpha = 1;
     }
     const hz = V.sy(cam.y - 1.5) * 0.35 + H * 0.4; // линия горизонта слегка следует за камерой
-    // дальние горы
+    // дальние горы — бесшовный непрерывный силуэт (см. forestMountainRidge)
+    forestMountainRidge(ctx, V, 0.04, hz + H * 0.14, H * 0.16, 240, '#9bb8d6', '#c9e0ee', 11);
+    forestMountainRidge(ctx, V, 0.08, hz + H * 0.17, H * 0.12, 160, '#7fa8b8', '#b5d6d8', 37);
     const strip = (spr, k, y, h) => { const w = spr.width * (h / spr.height), off = ((cam.x * P * k) % w + w) % w; for (let x = -off; x < W; x += w) ctx.drawImage(spr, x, y - h, w, h); };
-    strip(mountainStrip(3, '#9bb8d6', '#c9e0ee', true, 400), 0.04, hz + H * 0.06, H * 0.36);
-    strip(mountainStrip(8, '#7fa8b8', '#b5d6d8', false, 320), 0.08, hz + H * 0.1, H * 0.26);
     // дальний лес
     strip(forestStrip(5, '#7fb59a', 300), 0.15, hz + H * 0.2, H * 0.25);
     // дымка
@@ -801,7 +807,7 @@
     const s = surface(g.lv, H.x, g.t, H.y); if (s.y > -1e8) softShadow(ctx, V.sx(H.x), V.sy(s.y) + 3, P * 1.3, P * 0.24, 0.22);
   }
 
-  root.Gfx = { drawHero, drawDizzy, drawForestBackground, drawNearTrees, drawForestGround, drawGroundDeco, drawObjects, drawCoins, coinFace, drawCheckpoints, drawFinish, drawForeground, drawHeroShadows, softShadow, treeSprite, bushSprite, shade, _spr: { mountainStrip, forestStrip, cloudSprite, pineSprite, treeSprite } };
+  root.Gfx = { drawHero, drawDizzy, drawForestBackground, drawNearTrees, drawForestGround, drawGroundDeco, drawObjects, drawCoins, coinFace, drawCheckpoints, drawFinish, drawForeground, drawHeroShadows, softShadow, treeSprite, bushSprite, shade, _spr: { forestStrip, cloudSprite, pineSprite, treeSprite } };
   // персонаж везде рисуется по-новому (меню, магазин, все миры)
   Art.drawCharacter = (ctx, ch, sk, pose, u) => drawHero(ctx, ch, sk, pose, u);
   Art.drawDizzy = drawDizzy;
