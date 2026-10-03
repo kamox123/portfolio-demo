@@ -437,7 +437,41 @@
       const x = i * per - cam.x * P * k3 + hash(i, 4) * 80, w = spr.width * sc, h = spr.height * sc;
       ctx.drawImage(spr, x - w / 2, hz + H * 0.42 - h, w, h);
     }
+    // скалы с водопадами на среднем плане
+    const kw = 0.5, perW = 760, sw0 = Math.floor((cam.x * P * kw) / perW) - 1;
+    for (let i = sw0; i < sw0 + Math.ceil(W / perW) + 2; i++) {
+      if (hash(i, 77) < 0.2) continue;
+      const sc = Math.min(1.5, H / 560), x = i * perW - cam.x * P * kw + hash(i, 78) * 200, base = hz + H * 0.33;
+      drawWaterfall(ctx, x, base, sc, t, i);
+    }
     ctx.fillStyle = 'rgba(225,245,235,.25)'; ctx.fillRect(0, hz, W, H);
+  }
+  function cliffSprite(seed) {
+    return sprite('cliff' + seed, 300, 380, (c, W, H) => {
+      const r = rng(seed + 50);
+      c.beginPath(); c.moveTo(10, H); c.lineTo(28, 90); c.quadraticCurveTo(60, 40, 110, 50); c.lineTo(190, 46); c.quadraticCurveTo(250, 50, 272, 100); c.lineTo(292, H); c.closePath();
+      const g = c.createLinearGradient(0, 0, W, 0); g.addColorStop(0, '#b9b2a6'); g.addColorStop(0.5, '#958d82'); g.addColorStop(1, '#6f685f'); fo(c, g, 4);
+      c.strokeStyle = 'rgba(60,50,40,.35)'; c.lineWidth = 3; for (let k = 0; k < 9; k++) { const x = 40 + r() * 220, y = 90 + r() * 240; c.beginPath(); c.moveTo(x, y); c.lineTo(x + (r() - 0.5) * 40, y + 30 + r() * 30); c.stroke(); }
+      c.fillStyle = '#5fc04a'; c.beginPath(); c.moveTo(20, 96); c.quadraticCurveTo(60, 30, 110, 44); c.lineTo(190, 40); c.quadraticCurveTo(255, 44, 280, 104); c.quadraticCurveTo(150, 70, 20, 96); c.fill();
+      c.fillStyle = '#8ee06a'; c.beginPath(); c.ellipse(140, 52, 90, 10, 0, Math.PI, 0); c.fill();
+    });
+  }
+  function drawWaterfall(ctx, x, base, sc, t, i) {
+    const spr = cliffSprite(i % 3), w = spr.width * sc * 0.9, h = spr.height * sc * 0.9, top = base - h;
+    ctx.globalAlpha = 0.9; ctx.drawImage(spr, x - w / 2, top, w, h); ctx.globalAlpha = 1;
+    // вода падает: полоса с бегущими бликами
+    const wx = x - w * 0.08, ww = w * 0.18, wt = top + h * 0.13;
+    const wg = ctx.createLinearGradient(wx, 0, wx + ww, 0); wg.addColorStop(0, 'rgba(160,225,255,.85)'); wg.addColorStop(0.5, 'rgba(230,250,255,.95)'); wg.addColorStop(1, 'rgba(120,200,245,.85)');
+    ctx.fillStyle = wg; ctx.fillRect(wx, wt, ww, base - wt);
+    ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2;
+    // все блики одной линией и вся пена одной заливкой — так быстрее на слабых телефонах
+    ctx.beginPath();
+    for (let k = 0; k < 5; k++) { const lx = wx + ww * (0.15 + k * 0.17), off = ((t * 140 + k * 37) % 60); for (let y = wt - 60 + off; y < base; y += 60) { ctx.moveTo(lx, Math.max(wt, y)); ctx.lineTo(lx, Math.min(base, y + 26)); } }
+    ctx.stroke();
+    // пена и брызги внизу
+    ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.beginPath();
+    for (let k = 0; k < 6; k++) { const a = t * 3 + k, cx = wx + ww / 2 + Math.cos(a * 1.7 + k) * ww * 0.7, cy = base - 6 - Math.abs(Math.sin(a + k)) * 10, r = 6 + (k % 3) * 3; ctx.moveTo(cx + r, cy); ctx.arc(cx, cy, r, 0, 7); }
+    ctx.fill();
   }
 
   // деревья у самой тропы (параллакс почти 1, за персонажем)
@@ -591,6 +625,13 @@
         ctx.beginPath(); ctx.ellipse(x - r * 0.4, y - r * 0.55, r * 0.11, r * 0.08, 0, 0, 7); fo(ctx, '#3f2412', 0);
         continue;
       }
+      if (o.type === 'rock') { // большой камень поперёк тропы
+        const x = sx(o.cx), y = sy(o.cy), r = o.r * P; if (x < -r * 3 || x > V.W + r * 3) continue;
+        softShadow(ctx, x, sy(o.cy + o.r * 0.15) + 2, r * 2.8, r * 0.5, 0.4);
+        const spr = rockSprite(Math.round(o.cx * 7) % 4), w = r * 2.4, h = r * 1.0 * (o.k || 1) * 1.15 + r * 0.25;
+        ctx.drawImage(spr, x - w / 2, sy(o.cy + o.r * (o.k || 1)) - r * 0.08, w, h + r * 0.1);
+        continue;
+      }
       if (o.type === 'bridge') {
         const a = sx(o.x0), b = sx(o.x1); if (b < -60 || a > V.W + 60) continue;
         const n = Math.max(6, Math.round((o.x1 - o.x0) / 0.32)), yAt = (x) => surface(g.lv, x, g.t, o.y0 + 0.1).y;
@@ -629,6 +670,11 @@
       } else if (o.look === 'floe') {
         const ig = ctx.createLinearGradient(0, y, 0, y + P * 0.5); ig.addColorStop(0, '#ffffff'); ig.addColorStop(1, '#8cc8e8');
         rr(ctx, a, y - P * 0.05, b - a, P * 0.45, P * 0.12); fo(ctx, ig, Math.max(2, P * 0.035));
+      } else if (o.look === 'raft') {
+        const n = Math.max(3, Math.round((b - a) / (P * 0.32))), lw2 = (b - a) / n;
+        for (let i = 0; i < n; i++) { const lx = a + i * lw2; rr(ctx, lx + 1, y - P * 0.06, lw2 - 2, P * 0.3, P * 0.12); const lg = ctx.createLinearGradient(lx, 0, lx + lw2, 0); lg.addColorStop(0, '#b07a42'); lg.addColorStop(0.5, '#8a5a2a'); lg.addColorStop(1, '#5e3a17'); fo(ctx, lg, Math.max(1.5, P * 0.025)); ctx.beginPath(); ctx.ellipse(lx + lw2 / 2, y - P * 0.04, lw2 * 0.42, P * 0.05, 0, 0, 7); ctx.fillStyle = '#e0b07a'; ctx.fill(); }
+        ctx.strokeStyle = '#d9c08a'; ctx.lineWidth = Math.max(2, P * 0.04); for (const k of [0.2, 0.8]) { ctx.beginPath(); ctx.moveTo(a + (b - a) * k, y - P * 0.06); ctx.lineTo(a + (b - a) * k, y + P * 0.24); ctx.stroke(); }
+        ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(a - P * 0.2, y + P * 0.3); ctx.quadraticCurveTo((a + b) / 2, y + P * 0.38, b + P * 0.2, y + P * 0.3); ctx.stroke();
       } else if (o.look === 'lift') {
         ctx.strokeStyle = '#5b6170'; ctx.lineWidth = Math.max(2, P * 0.03); for (const x of [a + P * 0.15, b - P * 0.15]) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, -10); ctx.stroke(); }
         plank(ctx, a, y - P * 0.04, b - a, P * 0.3, P, '#ffcf3f');

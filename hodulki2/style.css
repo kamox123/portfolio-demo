@@ -215,3 +215,37 @@ html, body { max-width: 100vw; overscroll-behavior: none; }
   #sMenu .logo { align-self: flex-end; margin-right: 0; }
   .menu-bottom { margin-bottom: 10vh; }
 }
+
+/* ======== этап «Зелёная долина» ======== */
+#hud.hidden + #hud2 { display: none; }
+.hud2 { position: fixed; top: calc(max(8px, env(safe-area-inset-top)) + 52px); left: 50%; transform: translateX(-50%); z-index: 3; display: flex; gap: 8px; align-items: center; pointer-events: none; }
+.hstars { display: flex; gap: 1px; font-size: 20px; padding: 3px 8px; border-radius: 16px; background: rgba(20,12,40,.55); }
+.hud-title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wmap { overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+.wmap-in { position: relative; width: 100%; }
+.wmap-in svg.path { position: absolute; left: 0; top: 0; }
+.mapname { position: sticky; top: 8px; z-index: 2; margin: 8px auto 0; width: fit-content; padding: 8px 22px; border-radius: 16px; font-weight: 900; font-size: 22px; color: #fff; background: linear-gradient(#8a5a2b, #5e3a17); border: 3px solid #3a2410; box-shadow: 0 4px 0 rgba(0,0,0,.35); text-shadow: 0 2px 0 #3a2410; }
+.river { position: absolute; left: -5%; width: 110%; height: 46px; background: linear-gradient(#7fd6ff, #2f9be0); border-top: 4px solid #e9fbff; border-bottom: 4px solid rgba(20,80,140,.5); transform: rotate(-4deg); opacity: .9; }
+.flagnode { width: 56px; height: 56px; font-size: 30px; cursor: default; background: radial-gradient(circle at 35% 30%, #fff, #e3e8f0) !important; }
+.wincard { position: relative; padding-top: 34px; }
+.ribbon { position: absolute; left: 50%; top: -20px; transform: translateX(-50%); white-space: nowrap; padding: 10px 26px; border-radius: 14px; font-weight: 900; font-size: 22px; color: #fff; background: linear-gradient(#ff8a3d, #e5483a); border: 3px solid #7a1f10; box-shadow: 0 5px 0 #7a1f10; text-shadow: 0 2px 0 #7a1f10; }
+.wstar { display: inline-block; animation: starpop .45s cubic-bezier(.2, 1.6, .4, 1) backwards; }
+.wstar:nth-child(2) .ico { font-size: 64px; transform: translateY(-8px); }
+@keyframes starpop { from { transform: scale(0) rotate(-60deg); opacity: 0; } }
+.record { margin: 2px auto 8px; width: fit-content; padding: 6px 18px; border-radius: 12px; font-weight: 900; color: #4a2600; background: linear-gradient(110deg, #ffe066 30%, #fff8c8 50%, #ffe066 70%); background-size: 250% 100%; animation: shine 1.4s linear infinite, starpop .5s 1.2s backwards; box-shadow: 0 3px 0 #a86a00; }
+@keyframes shine { to { background-position: -250% 0; } }
+.stats4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 6px 0; }
+.stats4 div { padding: 8px 2px; border-radius: 12px; background: rgba(0,0,0,.22); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.stats4 small { font-size: 11px; opacity: .8; display: flex; align-items: center; gap: 3px; }
+.stats4 small .ico { font-size: 13px; }
+.stats4 b { font-size: 19px; }
+.crit { list-style: none; padding: 0; margin: 6px 0; text-align: left; font-size: 13px; }
+.crit li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; }
+.ck { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.12); color: rgba(255,255,255,.5); flex-shrink: 0; }
+.ck.on { background: #3fbf5a; color: #fff; }
+.reward { display: flex; align-items: center; justify-content: center; gap: 6px; font-weight: 800; margin: 4px 0; }
+.reward .ico { font-size: 20px; }
+.card { max-height: calc(100dvh - 30px); overflow-y: auto; }
+/* лента «Уровень пройден» внутри карточки, чтобы прокрутка окна её не обрезала */
+.wincard { padding-top: 14px; }
+.wincard .ribbon { position: relative; left: auto; top: auto; transform: none; display: inline-block; margin: 0 0 4px; }

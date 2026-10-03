@@ -204,6 +204,7 @@
 
   function drawObj(ctx, V, o, g, th, theme, t) {
     const P = V.PPM, sx = V.sx, sy = V.sy;
+    if (o.type === 'rock') return;
     if (o.type === 'log') {
       const x = sx(o.cx), y = sy(o.cy), r = o.r * P;
       if (x < -r * 2 || x > V.W + r * 2) return;

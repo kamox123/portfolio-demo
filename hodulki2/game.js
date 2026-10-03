@@ -1,7 +1,7 @@
 // «Ходульщик 2» — игровой цикл, управление, камера, экраны, прогресс и настройки.
 (function () {
   'use strict';
-  const { CFG, WORLDS, LEVELS_PER_WORLD, createGame, step, hipPos, footPos, legAngle, headPos, surface } = Phys;
+  const { CFG, WORLDS, levelCount, createGame, step, hipPos, footPos, legAngle, headPos, surface } = Phys;
   const { THEMES, CHARS, STILTS } = Art;
   const $ = (id) => document.getElementById(id);
   const cv = $('cv'), ctx = cv.getContext('2d');
@@ -18,7 +18,15 @@
   const applyVolume = () => { Snd.setVolume('sfx', save.sound ? save.sfx : 0); Snd.setVolume('music', save.musicOn ? save.music : 0); };
   applyVolume();
   const lvKey = (w, i) => w + ':' + i;
-  const levelOpen = (w, i) => (w === 0 && i === 0) || !!save.done[i > 0 ? lvKey(w, i - 1) : lvKey(w - 1, LEVELS_PER_WORLD - 1)];
+  const levelOpen = (w, i) => (w === 0 && i === 0) || !!save.done[i > 0 ? lvKey(w, i - 1) : lvKey(w - 1, levelCount(w - 1) - 1)];
+  const fmtT = (s) => { s = Math.max(0, s); const m = Math.floor(s / 60), r = Math.floor(s % 60); return m + ':' + String(r).padStart(2, '0'); };
+  // звёзды: 1 — прошёл; 2 — собрал 60% монет и упал не больше 2 раз; 3 — 85% монет, без падений и быстрее нормы уровня
+  function starsFor(lv, time, dz, got) {
+    const total = lv.coins.length || 1; let s = 1;
+    if (got >= total * 0.6 && dz <= 2) s = 2;
+    if (s === 2 && got >= total * 0.85 && dz === 0 && time <= (lv.par || 999)) s = 3;
+    return s;
+  }
   const worldOpen = (w) => levelOpen(w, 0);
   const charOf = () => CHARS.find((c) => c.id === save.sel) || CHARS[0];
   const stiltOf = () => STILTS.find((s) => s.id === save.stilt) || STILTS[0];
@@ -50,7 +58,7 @@
     particles = []; aim.on = false; pendingCmd = null; puffs = []; flyCoins = []; cpAct = {};
     mode = 'play'; showScreen(null);
     $('hud').classList.remove('hidden'); $('legChip').classList.remove('hidden'); $('legChip').dataset.leg = g.active;
-    $('hTitle').textContent = `${WORLDS[w].name} ${w + 1}-${i + 1}`;
+    $('hTitle').textContent = w === 0 ? `${i + 1}. ${g.lv.name}` : `${WORLDS[w].name} ${i + 1}`;
     const cps = g.lv.checkpoints;
     [$('hCp1'), $('hCp2')].forEach((el, k) => { if (cps[k]) { el.style.display = ''; el.style.left = (cps[k][0] / g.lv.finish) * 100 + '%'; el.classList.toggle('on', g.checkpoint >= k); } else el.style.display = 'none'; });
     $('hCoins').textContent = save.coins;
@@ -134,12 +142,12 @@
     // на фоне меню — демо-уровень
     g = createGame(save.cur[0], save.cur[1]); world = save.cur[0];
     const [w, i] = nextLevel();
-    $('mPlaySub').textContent = save.done[lvKey(WORLDS.length - 1, LEVELS_PER_WORLD - 1)] && !nextLevel(true) ? 'Все уровни пройдены!' : `${WORLDS[w].name} · уровень ${w + 1}-${i + 1}`;
+    $('mPlaySub').textContent = !nextLevel(true) ? 'Все уровни пройдены!' : `${WORLDS[w].name} · уровень ${i + 1}`;
     $('dotChars').classList.toggle('hidden', !CHARS.some((ch) => !save.owned.includes(ch.id) && ch.price <= save.coins));
     showScreen('sMenu'); Snd.music(save.cur[0]);
   }
   function nextLevel(strict) {
-    for (let w = 0; w < WORLDS.length; w++) for (let i = 0; i < LEVELS_PER_WORLD; i++) if (!save.done[lvKey(w, i)]) return [w, i];
+    for (let w = 0; w < WORLDS.length; w++) for (let i = 0; i < levelCount(w); i++) if (!save.done[lvKey(w, i)]) return [w, i];
     return strict ? null : save.cur;
   }
   $('mPlay').onclick = () => { Snd.unlock(); Snd.sfx.click(); const [w, i] = nextLevel(); startLevel(w, i); };
@@ -153,37 +161,52 @@
   function renderWorlds() {
     const tabs = $('worldTabs'); tabs.innerHTML = '';
     WORLDS.forEach((Wd, w) => {
-      const open = worldOpen(w), stars = Array.from({ length: LEVELS_PER_WORLD }, (_, i) => (save.done[lvKey(w, i)] || {}).stars || 0).reduce((a, b) => a + b, 0);
+      const open = worldOpen(w), stars = Array.from({ length: levelCount(w) }, (_, i) => (save.done[lvKey(w, i)] || {}).stars || 0).reduce((a, b) => a + b, 0);
       const b = document.createElement('button'); b.className = 'wtab' + (w === mapWorld ? ' on' : '') + (open ? '' : ' locked');
       b.innerHTML = `${open ? '' : ICON.lock}${w + 1}. ${Wd.name}${open ? ` <small>${ICON.star}${stars}</small>` : ''}`;
       b.onclick = () => { if (!open) { toast('Пройди предыдущий мир, чтобы открыть этот'); return; } Snd.sfx.click(); mapWorld = w; renderWorlds(); };
       tabs.appendChild(b);
     });
-    const map = $('worldMap'), th = THEMES[WORLDS[mapWorld].id];
+    const map = $('worldMap'), th = THEMES[WORLDS[mapWorld].id], n = levelCount(mapWorld);
     map.innerHTML = '';
-    map.style.background = `radial-gradient(ellipse at 70% 0%, rgba(255,250,220,.6), transparent 50%), linear-gradient(${th.sky[0]}, ${th.sky[1]} 45%, ${th.top} 45%, ${th.top2} 100%)`;
-    // извилистая тропинка
-    const pts = [[16, 82], [38, 64], [66, 70], [80, 46], [52, 30], [24, 18]];
-    const d = pts.map((p, i) => (i ? `L${p[0]},${p[1]}` : `M${p[0]},${p[1]}`)).join(' ');
-    map.insertAdjacentHTML('beforeend', `<svg class="path" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="${d}" fill="none" stroke="rgba(90,55,25,.55)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#f1d9a6" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="rgba(150,100,50,.6)" stroke-width="0.8" stroke-dasharray="2 2.5" stroke-linecap="round"/></svg>`);
-    // декор карты: деревья и камни нарисованы тем же кодом, что и в игре
-    for (const [x, y, s, kind] of [[8, 58, 1.0, 't'], [88, 74, 0.9, 't'], [92, 26, 0.8, 't'], [6, 30, 0.7, 'b'], [62, 88, 0.8, 'b'], [70, 14, 0.75, 't'], [36, 42, 0.6, 'b']]) {
-      const spr = kind === 't' ? Gfx.treeSprite(3 + Math.round(x) % 5, 0) : Gfx.bushSprite(4 + Math.round(y) % 3, 0);
-      const img = document.createElement('img'); img.src = spr.toDataURL(); img.className = 'mapdeco';
-      img.style.cssText = `left:${x}%;top:${y}%;width:${(kind === 't' ? 26 : 22) * s}%;transform:translate(-50%,-90%)`;
-      map.appendChild(img);
+    // уровни идут змейкой снизу вверх: по 4 в ряд, ряды чередуют направление
+    const perRow = n > 5 ? 4 : 5, rows = Math.ceil(n / perRow), rowH = 210, Hpx = rows * rowH + 170;
+    const inner = document.createElement('div'); inner.className = 'wmap-in'; inner.style.height = Hpx + 'px';
+    inner.style.background = `linear-gradient(${th.sky[0]} 0px, ${th.sky[1]} 120px, ${th.top} 121px, ${th.top2} 100%)`;
+    map.appendChild(inner);
+    const pts = [];
+    for (let i = 0; i < n; i++) { const r = Math.floor(i / perRow), c = i % perRow, cc = r % 2 ? perRow - 1 - c : c; pts.push([14 + (cc * 72) / (perRow - 1), Hpx - 90 - r * rowH - (c % 2 ? 46 : 0) - (c === perRow - 1 ? 30 : 0)]); }
+    pts.push([pts[n - 1][0] > 50 ? pts[n - 1][0] - 20 : pts[n - 1][0] + 20, pts[n - 1][1] - 110]); // флаг мира
+    // плавная тропинка (сплайн через точки)
+    const W2 = map.clientWidth || 360, X = (p) => (p[0] / 100) * W2;
+    let d = `M${X(pts[0])},${pts[0][1]}`;
+    for (let i = 0; i < pts.length - 1; i++) { const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)]; d += ` C${X(p1) + (X(p2) - X(p0)) / 6},${p1[1] + (p2[1] - p0[1]) / 6} ${X(p2) - (X(p3) - X(p1)) / 6},${p2[1] - (p3[1] - p1[1]) / 6} ${X(p2)},${p2[1]}`; }
+    inner.insertAdjacentHTML('beforeend', `<svg class="path" width="${W2}" height="${Hpx}"><path d="${d}" fill="none" stroke="rgba(90,55,25,.55)" stroke-width="26" stroke-linecap="round"/><path d="${d}" fill="none" stroke="#f1d9a6" stroke-width="18" stroke-linecap="round"/><path d="${d}" fill="none" stroke="rgba(150,100,50,.55)" stroke-width="3" stroke-dasharray="7 9" stroke-linecap="round"/></svg>`);
+    // ручей поперёк карты с мостиком
+    if (rows > 2) inner.insertAdjacentHTML('beforeend', `<div class="river" style="top:${Hpx - 2 * rowH - 30}px"></div>`);
+    // декор: деревья, кусты, камни, грибы — нарисованы кодом игры
+    const deco = (spr, x, y, w) => { const img = document.createElement('img'); img.src = spr.toDataURL(); img.className = 'mapdeco'; img.style.cssText = `left:${x}%;top:${y}px;width:${w}px;transform:translate(-50%,-92%)`; inner.appendChild(img); };
+    for (let k = 0; k < rows * 4 + 3; k++) {
+      const y = 150 + ((k * 137) % (Hpx - 180)), x = (k * 53) % 100, near = pts.some((p) => Math.abs(p[0] - x) < 14 && Math.abs(p[1] - y) < 70);
+      if (near) continue;
+      const kind = k % 4; deco(kind === 0 ? Gfx.treeSprite(3 + (k % 6), 0) : kind === 1 ? Gfx.bushSprite(4 + (k % 4), 0) : kind === 2 ? Gfx.treeSprite(11 + (k % 4), 0) : Gfx.bushSprite(9 + (k % 3), 0), x, y, kind % 2 ? 70 : 96);
     }
-    for (let i = 0; i < LEVELS_PER_WORLD; i++) {
+    inner.insertAdjacentHTML('afterbegin', `<div class="mapname">${WORLDS[mapWorld].name}</div>`);
+    let curNode = null;
+    for (let i = 0; i < n; i++) {
       const p = pts[i], d2 = save.done[lvKey(mapWorld, i)], ok = levelOpen(mapWorld, i), cur = ok && !d2;
       const b = document.createElement('button'); b.className = 'node' + (d2 ? ' done' : '') + (!ok ? ' locked' : '') + (cur ? ' cur' : '');
-      b.style.left = p[0] + '%'; b.style.top = p[1] + '%';
+      b.style.left = p[0] + '%'; b.style.top = p[1] + 'px';
       const st = d2 ? d2.stars : 0;
-      b.innerHTML = ok ? `${d2 ? `<span class="stars3">${[0, 1, 2].map((k) => (k < st ? ICON.star : ICON.starOff)).join('')}</span>` : ''}${i + 1}${d2 && d2.time ? `<span class="lbl">${d2.time.toFixed(1)} с</span>` : ''}` : `<span class="ico big">${ICON.lock}</span>`;
-      b.onclick = () => { if (!ok) { toast('Сначала пройди предыдущий уровень'); return; } Snd.sfx.click(); startLevel(mapWorld, i); };
-      map.appendChild(b);
+      b.innerHTML = ok ? `${d2 ? `<span class="stars3">${[0, 1, 2].map((k) => (k < st ? ICON.star : ICON.starOff)).join('')}</span>` : ''}${i + 1}${d2 && d2.time ? `<span class="lbl">${fmtT(d2.time)}</span>` : ''}` : `<span class="ico big">${ICON.lock}</span>`;
+      b.title = mapWorld === 0 ? Phys.GV[i].name : '';
+      b.onclick = () => { if (!ok) { toast('Сначала пройди уровень ' + i); return; } Snd.sfx.click(); startLevel(mapWorld, i); };
+      inner.appendChild(b);
+      if (cur || (!curNode && i === n - 1)) curNode = b;
     }
-    // финиш мира — флажок в конце тропинки
-    const fl = document.createElement('div'); fl.className = 'node locked'; fl.style.cssText = `left:${pts[5][0]}%;top:${pts[5][1]}%;width:54px;height:54px;font-size:30px;cursor:default;background:radial-gradient(circle at 35% 30%,#fff,#e3e8f0)`; fl.innerHTML = ICON.flag; map.appendChild(fl);
+    const fp = pts[n], fl = document.createElement('div'); fl.className = 'node locked flagnode'; fl.style.left = fp[0] + '%'; fl.style.top = fp[1] + 'px'; fl.innerHTML = ICON.flag; inner.appendChild(fl);
+    // прокрутка к текущему уровню
+    setTimeout(() => { if (curNode) map.scrollTop = Math.max(0, parseFloat(curNode.style.top) - map.clientHeight * 0.55); }, 0);
   }
   // ---------- персонажи и ходули ----------
   let shopTab = 'chars', view = save.sel;
@@ -276,37 +299,53 @@
   $('pRestart').onclick = () => { $('mPause').classList.add('hidden'); startLevel(world, level); };
   $('pCheckpoint').onclick = () => { $('mPause').classList.add('hidden'); startLevel(world, level, g.checkpoint); };
   $('pMenu').onclick = () => toMenu();
+  let settingsFromPause = false;
+  $('pSettings').onclick = () => { Snd.sfx.click(); settingsFromPause = true; $('mPause').classList.add('hidden'); renderSettings(); screens.forEach((s) => $(s).classList.toggle('hidden', s !== 'sSettings')); };
+  $('sSettings').querySelector('[data-back]').onclick = () => { Snd.sfx.click(); if (settingsFromPause) { settingsFromPause = false; $('sSettings').classList.add('hidden'); $('mPause').classList.remove('hidden'); } else toMenu(); };
   $('lCheckpoint').onclick = () => { $('mLose').classList.add('hidden'); startLevel(world, level, lastCp); };
   $('lRestart').onclick = () => { $('mLose').classList.add('hidden'); startLevel(world, level); };
   $('lMenu').onclick = () => toMenu();
-  $('wNext').onclick = () => { $('mWin').classList.add('hidden'); const nx = level + 1 < LEVELS_PER_WORLD ? [world, level + 1] : world + 1 < WORLDS.length ? [world + 1, 0] : null; if (nx) startLevel(nx[0], nx[1]); else toMenu(); };
+  $('wNext').onclick = () => { Snd.sfx.click(); $('mWin').classList.add('hidden'); const nx = level + 1 < levelCount(world) ? [world, level + 1] : world + 1 < WORLDS.length ? [world + 1, 0] : null; if (nx) startLevel(nx[0], nx[1]); else toMenu(); };
   $('wRetry').onclick = () => { $('mWin').classList.add('hidden'); startLevel(world, level); };
   $('wMenu').onclick = () => toMenu();
   let lastCp = -1;
 
   function onWin() {
     mode = 'win';
-    const total = g.lv.coins.length, got = g.coinsGot;
-    const stars = 1 + (got >= Math.ceil(total * 0.8) ? 1 : 0) + (deaths === 0 ? 1 : 0);
-    const reward = 20 + (world * LEVELS_PER_WORLD + level) * 4;
+    const lv = g.lv, total = lv.coins.length, got = g.coinsGot;
+    const stars = starsFor(lv, g.time, deaths, got);
+    const reward = 15 + (world === 0 ? level : 20 + world * 5 + level) * 2 + stars * 5;
     save.coins += reward;
-    const prev = save.done[lvKey(world, level)];
+    const key = lvKey(world, level), prev = save.done[key];
     const record = !prev || g.time < prev.time;
-    save.done[lvKey(world, level)] = { stars: Math.max(stars, prev ? prev.stars : 0), time: Math.min(g.time, prev ? prev.time : 1e9), deaths: Math.min(deaths, prev && prev.deaths !== undefined ? prev.deaths : 1e9) };
+    save.done[key] = { stars: Math.max(stars, prev ? prev.stars : 0), time: Math.min(g.time, prev ? prev.time : 1e9), deaths: Math.min(deaths, prev && prev.deaths !== undefined ? prev.deaths : 1e9), coins: Math.max(got, prev ? prev.coins || 0 : 0) };
     if (world === 0 && level === 0) save.tutorialDone = true;
     tut = null; hint('');
-    const nowOpenWorld = level === LEVELS_PER_WORLD - 1 && world + 1 < WORLDS.length;
+    const last = level === levelCount(world) - 1, nowOpenWorld = last && world + 1 < WORLDS.length;
+    const newLevel = !prev && !last;
     persist();
     setTimeout(() => {
-      $('wStars').innerHTML = [0, 1, 2].map((i) => (i < stars ? ICON.star : ICON.starOff)).join('');
-      const best = save.done[lvKey(world, level)];
-      $('wText').innerHTML = `<div class="stats"><div><small>Время</small><b>${g.time.toFixed(1)} с</b>${record ? '<i>рекорд!</i>' : `<i>лучшее ${best.time.toFixed(1)} с</i>`}</div><div><small>Падения</small><b>${deaths}</b>${deaths ? '' : '<i>ни одного!</i>'}</div><div><small>Монеты</small><b>${got}/${total}</b><i>+${reward} награда</i></div></div>${nowOpenWorld ? `<b class="newworld">Открыт новый мир: ${WORLDS[world + 1].name}!</b>` : ''}`;
-      $('wNext').textContent = world === WORLDS.length - 1 && level === LEVELS_PER_WORLD - 1 ? 'В меню' : 'Дальше ▶';
+      const best = save.done[key];
+      $('wStars').innerHTML = [0, 1, 2].map((i) => `<span class="wstar" style="animation-delay:${0.25 + i * 0.35}s">${i < stars ? ICON.star : ICON.starOff}</span>`).join('');
+      for (let i = 0; i < stars; i++) setTimeout(() => Snd.sfx.star(i), 250 + i * 350);
+      $('wRecord').classList.toggle('hidden', !(record && prev));
+      const ok = (b) => (b ? '<b class="ck on">✓</b>' : '<b class="ck">—</b>');
+      $('wText').innerHTML = `<div class="stats4">
+        <div><small>${ICON.clock}Время</small><b>${fmtT(g.time)}</b></div>
+        <div><small>${ICON.coin}Монеты</small><b>${got}/${total}</b></div>
+        <div><small>${ICON.bonk}Падения</small><b>${deaths}</b></div>
+        <div><small>${ICON.star}Лучшее</small><b>${fmtT(best.time)}</b></div></div>
+        <ul class="crit"><li>${ok(true)}<span>Дойти до финиша</span></li>
+        <li>${ok(stars >= 2)}<span>Собрать 60% монет, падений не больше 2</span></li>
+        <li>${ok(stars >= 3)}<span>85% монет, без падений, быстрее ${fmtT(lv.par || 0)}</span></li></ul>
+        <div class="reward">Награда: ${ICON.coin}<b>+${reward}</b></div>
+        ${nowOpenWorld ? `<b class="newworld">Открыт новый мир: ${WORLDS[world + 1].name}!</b>` : newLevel ? `<b class="newworld">Открыт уровень ${level + 2}!</b>` : ''}`;
+      $('wNext').textContent = !last ? 'СЛЕДУЮЩИЙ УРОВЕНЬ' : world + 1 < WORLDS.length ? 'СЛЕДУЮЩИЙ МИР' : 'В МЕНЮ';
       $('mWin').classList.remove('hidden'); $('hud').classList.add('hidden'); $('legChip').classList.add('hidden');
-      if (nowOpenWorld) Snd.sfx.unlock();
-    }, 1600);
-  }
-  function onLose() {
+      if (nowOpenWorld || newLevel) setTimeout(() => Snd.sfx.unlock(), 1400);
+      if (record && prev) setTimeout(() => Snd.sfx.checkpoint(), 1300);
+    }, 1700);
+  }  function onLose() {
     mode = 'lose'; deaths++; lastCp = g.checkpoint; save.totalDeaths++; persist();
     $('hDeaths').textContent = deaths;
     const card = $('fallCard'); card.innerHTML = `<b>${g.why}</b>${g.tip ? `<br><span>${ICON.bulb}${g.tip}</span>` : ''}<br><small>${lastCp >= 0 ? 'Возвращаемся на контрольную точку…' : 'Начинаем сначала…'}</small>`;
@@ -380,7 +419,12 @@
     cam.x += (h.x + lookAhead + (g.hv ? g.hv.x : 0) * 0.25 - cam.x) * k;
     const groundHere = surface(g.lv, h.x, g.t, h.y).y;
     cam.y += ((groundHere > -1e8 ? Math.max(h.y - 0.6, groundHere + 1.6) : h.y - 0.6) + (close ? 0.6 : 0) - cam.y) * k * 0.6;
-    if (mode === 'play') $('hBar').style.width = Math.max(0, Math.min(100, (h.x / g.lv.finish) * 100)) + '%';
+    if (mode === 'play') {
+      $('hBar').style.width = Math.max(0, Math.min(100, (h.x / g.lv.finish) * 100)) + '%';
+      const tt = fmtT(g.time); if ($('hTime').textContent !== tt) $('hTime').textContent = tt;
+      const pot = deaths > 2 ? 1 : deaths > 0 || g.time > (g.lv.par || 999) ? 2 : 3; // сколько звёзд ещё можно получить
+      if ($('hStars').dataset.n !== String(pot)) { $('hStars').dataset.n = pot; $('hStars').innerHTML = [0, 1, 2].map((i) => (i < pot ? ICON.star : ICON.starOff)).join(''); }
+    }
 
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     if (shake > 0) { shake -= dt; ctx.translate((Math.random() - 0.5) * 10 * shake, (Math.random() - 0.5) * 10 * shake); }
@@ -479,7 +523,7 @@
   }
 
   // для проверки: #w2l3 — сразу мир 2 уровень 3; #demo — играет автопилот
-  const m = location.hash.match(/w(\d)l(\d)/);
+  const m = location.hash.match(/w(\d+)l(\d+)/);
   // приложение без интернета (только когда игра открыта с сайта, а не из файла)
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
   applyIcons();

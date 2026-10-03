@@ -25,7 +25,7 @@
 
   // ================= МИРЫ =================
   const WORLDS = [
-    { id: 'forest', name: 'Лес', pieces: { flat: 3, slope: 2, steps: 2, pit: 2, log: 2, bridge: 2 }, pit: 'spikes' },
+    { id: 'forest', name: 'Зелёная долина', pieces: { flat: 3, slope: 2, steps: 2, pit: 2, log: 2, bridge: 2 }, pit: 'spikes' },
     { id: 'mountains', name: 'Горы', pieces: { flat: 2, slope: 3, steps: 2, pit: 2, narrow: 2, rocks: 2, swing: 2 }, pit: 'spikes' },
     { id: 'construction', name: 'Стройка', pieces: { flat: 2, steps: 2, pit: 2, movH: 2, movV: 2, narrow: 2, seesaw: 2, rocks: 2 }, pit: 'spikes' },
     { id: 'ice', name: 'Ледяной мир', pieces: { flat: 2, ice: 3, water: 3, floes: 3, slope: 2, narrow: 1 }, pit: 'water' },
@@ -43,6 +43,7 @@
   // Уровень: segs — неподвижная земля [x1,y1,x2,y2,мат], objs — движущиеся/качающиеся поверхности,
   // haz — опасности, zones — зоны (низкая гравитация), coins, checkpoints, finish.
   function genLevel(world, idx) {
+    if (world === 0) return buildGV(idx);
     const W = WORLDS[world];
     const r = rng(world * 100 + idx * 7 + 11);
     const d = Math.min(1, (world * LEVELS_PER_WORLD + idx) / (WORLDS.length * LEVELS_PER_WORLD - 1)); // общая сложность 0..1
@@ -165,12 +166,112 @@
     return lv;
   }
 
+  // ================= «ЗЕЛЁНАЯ ДОЛИНА»: 20 уровней, придуманных вручную =================
+  // Уровень — список кусков трассы. Каждый кусок задаёт форму земли, препятствие и монеты.
+  //   ['flat', длина, монет]            ровная земля
+  //   ['hill', длина, высота]           плавный холм (высота < 0 — впадина)
+  //   ['slope', длина, перепад]         подъём или спуск
+  //   ['step', высота]                  уступ вверх (+) или вниз (−)
+  //   ['log', радиус] / ['rock', размер] бревно или камень поперёк тропы
+  //   ['pit', ширина, 'spikes'|'water'] яма с кольями или водой
+  //   ['bridge', ширина]                мостик над ямой
+  //   ['posts', сколько, промежуток, высоты?] пни-столбики над ямой
+  //   ['raft', ширина ямы, период]      плот над водой, плавает туда-сюда
+  //   ['lift', высота, период]          подъёмник на уступ
+  //   ['swing', ширина]                 подвесная доска на верёвках
+  //   ['seesaw', полудлина]             качели-доска на камне
+  //   ['cp']                            контрольная точка
+  const GV = [
+    { name: 'Первые шаги', pieces: [['flat', 5, 2], ['hill', 6, 0.3], ['flat', 3, 1], ['cp'], ['flat', 4, 2], ['log', 0.22], ['flat', 4, 1], ['cp'], ['hill', 6, 0.35], ['flat', 4, 2]] },
+    { name: 'Холмики', pieces: [['flat', 4, 1], ['hill', 6, 0.5], ['hill', 6, -0.4], ['cp'], ['flat', 3, 1], ['hill', 7, 0.7], ['flat', 3, 2], ['cp'], ['hill', 6, -0.5], ['hill', 5, 0.4], ['flat', 3, 1]] },
+    { name: 'Ступеньки', pieces: [['flat', 4, 1], ['step', 0.25], ['flat', 3, 1], ['step', 0.3], ['flat', 3, 1], ['cp'], ['step', -0.3], ['flat', 3, 1], ['step', -0.25], ['flat', 3, 1], ['hill', 6, 0.5], ['cp'], ['log', 0.25], ['flat', 4, 2]] },
+    { name: 'Брёвнышки', pieces: [['flat', 4, 1], ['log', 0.25], ['flat', 3, 1], ['log', 0.3], ['hill', 6, 0.4], ['cp'], ['rock', 0.35], ['flat', 3, 1], ['log', 0.35], ['flat', 3, 1], ['cp'], ['rock', 0.4], ['hill', 5, -0.3], ['log', 0.3], ['flat', 4, 2]] },
+    { name: 'Первая ямка', pieces: [['flat', 4, 1], ['pit', 0.8, 'spikes'], ['flat', 4, 1], ['hill', 6, 0.4], ['cp'], ['log', 0.3], ['flat', 3, 1], ['pit', 1.0, 'spikes'], ['flat', 3, 1], ['cp'], ['step', 0.3], ['flat', 3, 1], ['pit', 1.1, 'spikes'], ['flat', 4, 2]] },
+    { name: 'Овраг', pieces: [['flat', 4, 1], ['hill', 8, -1.0], ['flat', 2, 1], ['slope', 4, 0.6], ['cp'], ['pit', 1.2, 'spikes'], ['flat', 3, 1], ['log', 0.4], ['slope', 5, -0.7], ['cp'], ['hill', 7, 0.9], ['pit', 1.3, 'spikes'], ['flat', 4, 2]] },
+    { name: 'Мостик', pieces: [['flat', 4, 1], ['bridge', 3.2], ['flat', 3, 1], ['rock', 0.4], ['flat', 3, 1], ['cp'], ['pit', 1.2, 'spikes'], ['flat', 3, 1], ['bridge', 4.2], ['cp'], ['hill', 6, 0.5], ['rock', 0.45], ['flat', 4, 2]] },
+    { name: 'Каменная тропа', pieces: [['flat', 4, 1], ['rock', 0.45], ['flat', 2.5, 1], ['step', 0.5], ['flat', 3, 1], ['rock', 0.5], ['cp'], ['step', -0.6], ['flat', 3, 1], ['log', 0.4], ['rock', 0.55], ['cp'], ['slope', 5, 0.6], ['pit', 1.3, 'spikes'], ['flat', 4, 2]] },
+    { name: 'Ручей', pieces: [['flat', 4, 1], ['pit', 1.0, 'water'], ['flat', 3, 1], ['log', 0.35], ['flat', 2, 1], ['cp'], ['pit', 1.3, 'water'], ['hill', 6, 0.5], ['cp'], ['seesaw', 1.8], ['flat', 3, 1], ['pit', 1.4, 'water'], ['flat', 4, 2]] },
+    { name: 'Пни', pieces: [['flat', 4, 1], ['posts', 3, 0.9], ['flat', 3, 1], ['cp'], ['pit', 1.3, 'spikes'], ['flat', 2.5, 1], ['log', 0.4], ['flat', 2, 1], ['cp'], ['bridge', 4], ['raft', 3.0, 5.0], ['flat', 4, 2]] },
+    { name: 'Плот', pieces: [['flat', 4, 1], ['raft', 3.2, 5.0], ['flat', 3, 1], ['rock', 0.45], ['cp'], ['bridge', 4.5], ['flat', 2, 1], ['raft', 3.6, 4.6], ['cp'], ['hill', 6, 0.6], ['pit', 1.4, 'water'], ['flat', 4, 2]] },
+    { name: 'Обрывы', pieces: [['flat', 4, 1], ['step', 0.6], ['flat', 2.5, 1], ['step', 0.7], ['flat', 3, 1], ['cp'], ['step', -0.8], ['flat', 2.5, 1], ['pit', 1.5, 'spikes'], ['flat', 2.5, 1], ['cp'], ['step', 0.6], ['rock', 0.5], ['step', -0.9], ['flat', 4, 2]] },
+    { name: 'Качели', pieces: [['flat', 4, 1], ['swing', 3.4], ['flat', 3, 1], ['seesaw', 2.0], ['cp'], ['flat', 2, 1], ['pit', 1.4, 'water'], ['flat', 2.5, 1], ['swing', 3.8], ['cp'], ['log', 0.45], ['seesaw', 2.2], ['flat', 4, 2]] },
+    { name: 'Узкая тропа', pieces: [['flat', 4, 1], ['posts', 4, 1.0], ['flat', 3, 1], ['rock', 0.45], ['cp'], ['posts', 5, 1.05, [0, 0.3, 0.5, 0.2, 0]], ['flat', 3, 1], ['cp'], ['log', 0.45], ['posts', 4, 1.1], ['flat', 4, 2]] },
+    { name: 'Подъёмник', pieces: [['flat', 4, 1], ['lift', 0.9, 4.6], ['flat', 3, 1], ['step', -0.5], ['cp'], ['pit', 1.4, 'water'], ['flat', 2, 1], ['raft', 3.4, 4.2], ['cp'], ['lift', 1.1, 4.2], ['flat', 2, 1], ['step', -1.0], ['flat', 4, 2]] },
+    { name: 'Всё вместе', pieces: [['flat', 4, 1], ['hill', 6, 0.7], ['log', 0.45], ['pit', 1.5, 'spikes'], ['flat', 2, 1], ['cp'], ['bridge', 4.5], ['rock', 0.5], ['pit', 1.4, 'water'], ['cp'], ['posts', 4, 1.1], ['swing', 3.6], ['flat', 4, 2]] },
+    { name: 'Быстрый плот', pieces: [['flat', 4, 1], ['raft', 3.6, 3.6], ['flat', 2.5, 1], ['posts', 4, 1.1, [0, 0.3, 0.3, 0]], ['cp'], ['flat', 2, 1], ['raft', 4.0, 3.4], ['cp'], ['swing', 3.8], ['log', 0.5], ['pit', 1.6, 'spikes'], ['flat', 4, 2]] },
+    { name: 'Болото', pieces: [['flat', 4, 1], ['pit', 1.5, 'water'], ['posts', 3, 1.1], ['raft', 3.6, 4.0], ['cp'], ['flat', 2, 1], ['pit', 1.6, 'water'], ['seesaw', 2.2], ['cp'], ['pit', 1.5, 'water'], ['raft', 4.0, 3.8], ['flat', 4, 2]] },
+    { name: 'Высокие пни', pieces: [['flat', 4, 1], ['posts', 5, 1.15, [0.2, 0.5, 0.8, 0.5, 0.2]], ['flat', 2.5, 1], ['lift', 1.1, 3.8], ['cp'], ['flat', 2, 1], ['pit', 1.8, 'spikes'], ['step', -1.1], ['cp'], ['posts', 5, 1.2, [0, 0.4, 0.7, 0.4, 0]], ['flat', 4, 2]] },
+    { name: 'Финал долины', pieces: [['flat', 4, 1], ['hill', 7, 0.9], ['pit', 1.7, 'spikes'], ['bridge', 5], ['flat', 2, 1], ['raft', 3.8, 3.6], ['cp'], ['posts', 5, 1.15, [0, 0.4, 0.8, 0.4, 0]], ['swing', 3.8], ['seesaw', 2.2], ['cp'], ['lift', 1.1, 3.8], ['pit', 1.8, 'water'], ['log', 0.5], ['rock', 0.55], ['flat', 5, 2]] },
+  ];
+  const levelCount = (w) => (w === 0 ? GV.length : LEVELS_PER_WORLD);
+
+  function buildGV(idx) {
+    const spec = GV[idx];
+    const lv = { world: 0, idx, name: spec.name, segs: [], objs: [], haz: [], zones: [], coins: [], checkpoints: [], finish: 0, finishY: 0, theme: 'forest', pieces: [], hard: 0 };
+    let x = -14, y = 0;
+    const seg = (x2, y2, mat = 'ground') => { lv.segs.push([x, y, x2, y2, mat]); x = x2; y = y2; };
+    const coin = (cx, cy) => lv.coins.push([cx, cy]);
+    const coinArc = (x0, x1, base, n, h = 1.2) => { for (let i = 0; i < n; i++) { const u = (i + 1) / (n + 1); coin(x0 + (x1 - x0) * u, base + 3.0 + Math.sin(Math.PI * u) * h); } };
+    const pitWalls = (x0, w, kind) => {
+      if (kind === 'water') lv.segs.push([x0, y - 1.2, x0 + w, y - 1.2, 'water']);
+      else lv.segs.push([x0, y - 3, x0 + w, y - 3, 'spikes']);
+      lv.segs.push([x0, y, x0, y - 4, 'wall'], [x0 + w, y - 4, x0 + w, y, 'wall']);
+    };
+    seg(5, 0);
+    for (const p of spec.pieces) {
+      const k = p[0], x0 = x;
+      switch (k) {
+        case 'flat': { const n = p[2] || 0; for (let i = 0; i < n; i++) coin(x + (p[1] * (i + 0.5)) / n, y + 3.3); seg(x + p[1], y); break; }
+        case 'hill': { // плавный холм из 6 отрезков по синусоиде
+          const L = p[1], h = p[2], y0 = y;
+          for (let i = 1; i <= 6; i++) seg(x0 + (L * i) / 6, y0 + h * Math.sin((Math.PI * i) / 6));
+          coin(x0 + L / 2, y0 + h + 3.4); lv.hard += Math.abs(h) * 0.5; break;
+        }
+        case 'slope': { const L = p[1], dy = p[2], y0 = y; for (let i = 1; i <= 4; i++) seg(x0 + (L * i) / 4, y0 + dy * (1 - Math.cos((Math.PI * i) / 4)) / 2); lv.hard += Math.abs(dy) * 0.4; break; }
+        case 'step': { seg(x + 0.0001, y); lv.segs.push([x, y, x, y + p[1], 'wall']); y += p[1]; seg(x + 1.8, y); coin(x - 0.9, y + 3.3); lv.hard += Math.abs(p[1]); break; }
+        case 'log': case 'rock': {
+          const r = p[1]; seg(x + 1.2, y);
+          lv.objs.push(k === 'log' ? { type: 'log', cx: x + r + 0.2, cy: y, r } : { type: 'rock', cx: x + r + 0.2, cy: y - r * 0.15, r, k: 0.85 });
+          coinArc(x, x + 2 * r + 0.4, y + r, 1); seg(x + 2 * r + 0.4 + 1.4, y); lv.hard += r; break;
+        }
+        case 'pit': { seg(x + 1.4, y); const w = p[1]; pitWalls(x, w, p[2]); coinArc(x - 0.3, x + w + 0.3, y, 2); x += w; seg(x + 1.6, y); lv.hard += w; break; }
+        case 'bridge': { seg(x + 1.3, y); const w = p[1]; lv.objs.push({ type: 'bridge', x0: x, x1: x + w, y0: y, sag: 0.14, load: 0 }); pitWalls(x, w, 'spikes'); coinArc(x, x + w, y, 3, 0.4); x += w; seg(x + 1.4, y); lv.hard += w * 0.4; break; }
+        case 'posts': {
+          seg(x + 1.3, y); const n = p[1], gap = p[2], hs = p[3] || [], w0 = x, pw = 0.7;
+          for (let i = 0; i < n; i++) { const px = w0 + gap * (i + 0.5) + i * pw, ph = hs[i] || 0; lv.objs.push({ type: 'plat', x0: px, w: pw, y0: y + ph, ax: 0, ay: 0, per: 1, ph: 0, look: 'post' }); coin(px + pw / 2, y + ph + 3.3); }
+          const w = gap * (n + 0.5) + n * pw; pitWalls(w0, w, 'spikes'); x = w0 + w; seg(x + 1.4, y); lv.hard += n * 1.2; break;
+        }
+        case 'raft': {
+          seg(x + 1.3, y); const w = p[1], pw = 2.5, amp = (w - pw) / 2 - 0.05;
+          lv.objs.push({ type: 'plat', x0: x + w / 2 - pw / 2, w: pw, y0: y, ax: amp, ay: 0, per: p[2], ph: idx * 1.7, look: 'raft' });
+          pitWalls(x, w, 'water'); coinArc(x, x + w, y, 2, 0.3); x += w; seg(x + 1.4, y); lv.hard += 3; break;
+        }
+        case 'lift': {
+          seg(x + 1.3, y); const h = p[1], w = 2.9, xx = x;
+          lv.objs.push({ type: 'plat', x0: xx + 0.1, w: 2.7, y0: y + h / 2, ax: 0, ay: h / 2, per: p[2], ph: idx, look: 'lift' });
+          pitWalls(xx, w, 'spikes'); x = xx + w; y += h; seg(x, y); seg(x + 1.8, y);
+          lv.segs.push([xx + w, y - h, xx + w, y, 'wall']); coin(xx + w / 2, y + 3.3); lv.hard += 3; break;
+        }
+        case 'swing': { seg(x + 1.3, y); const w = p[1], xx = x; lv.objs.push({ type: 'swing', px: xx + w / 2, py: y + 4.2, R: 4.2, amp: 0.11, per: 4.2, ph: idx, w: 2.8 }); pitWalls(xx, w, 'spikes'); coinArc(xx, xx + w, y, 2, 0.4); x = xx + w; seg(x + 1.4, y); lv.hard += 3; break; }
+        case 'seesaw': { seg(x + 1.2, y); const hl = p[1], xx = x; lv.objs.push({ type: 'seesaw', px: xx + hl, py: y + 0.15, hl, a: 0.22, av: 0 }); pitWalls(xx, hl * 2, 'spikes'); coin(xx + hl, y + 3.5); x = xx + 2 * hl; seg(x + 1.4, y); lv.hard += 2.5; break; }
+        case 'cp': { seg(x + 1.2, y); lv.checkpoints.push([x - 0.6, y]); seg(x + 1.2, y); break; }
+      }
+      lv.pieces.push({ k, x0, x1: x });
+    }
+    seg(x + 3, y);
+    lv.finish = x; lv.finishY = y;
+    seg(x + 16, y);
+    lv.length = lv.finish;
+    // время на 3 звезды: путь шагами ~1.7 м за 0.9 с + запас на сложные места
+    lv.par = Math.round(lv.finish / 1.45 + lv.hard * 1.2 + 6);
+    return lv;
+  }
   // ================= ПОВЕРХНОСТИ И ОПАСНОСТИ =================
   function objState(o, t) {
     if (o.type === 'plat') {
       let s = Math.sin((2 * Math.PI * t) / o.per + o.ph), c = Math.cos((2 * Math.PI * t) / o.per + o.ph);
       const k = (2 * Math.PI) / o.per;
-      if (o.look === 'lift' || o.look === 'plat' || o.look === 'floe') { const s2 = Math.max(-1, Math.min(1, s * 1.35)); c = Math.abs(s * 1.35) >= 1 ? 0 : c * 1.35; s = s2; } // платформа задерживается у краёв
+      if (o.look === 'lift' || o.look === 'plat' || o.look === 'floe' || o.look === 'raft') { const s2 = Math.max(-1, Math.min(1, s * 1.35)); c = Math.abs(s * 1.35) >= 1 ? 0 : c * 1.35; s = s2; } // платформа задерживается у краёв
       return { x0: o.x0 + o.ax * s, x1: o.x0 + o.ax * s + o.w, y: o.y0 + o.ay * s, vx: o.ax * k * c, vy: o.ay * k * c };
     }
     if (o.type === 'swing') {
@@ -192,7 +293,7 @@
       if (x >= Math.min(x1, x2) && x <= Math.max(x1, x2)) take(y1 + ((y2 - y1) * (x - x1)) / (x2 - x1), s, mat);
     }
     for (const o of lv.objs) {
-      if (o.type === 'log') { const dx = x - o.cx; if (Math.abs(dx) < o.r) take(o.cy + Math.sqrt(o.r * o.r - dx * dx), o, 'log'); }
+      if (o.type === 'log' || o.type === 'rock') { const dx = x - o.cx; if (Math.abs(dx) < o.r) take(o.cy + Math.sqrt(o.r * o.r - dx * dx) * (o.type === 'rock' ? o.k || 1 : 1), o, o.type); }
       else if (o.type === 'bridge') {
         if (x >= o.x0 && x <= o.x1) { const u = (x - o.x0) / (o.x1 - o.x0); take(o.y0 - (o.sag + o.load * 0.12) * Math.sin(Math.PI * u), o, 'bridge'); }
       } else if (o.type === 'seesaw') {
@@ -527,6 +628,6 @@
     void other;
     return null;
   }
-  root.Phys = { CFG, WORLDS, LEVELS_PER_WORLD, genLevel, surface, objState, rockY, pistonY, createGame, step, command, preview, planStep, hipPos, footPos, legAngle, headPos, bot, safeLanding };
+  root.Phys = { CFG, WORLDS, LEVELS_PER_WORLD, GV, levelCount, genLevel, surface, objState, rockY, pistonY, createGame, step, command, preview, planStep, hipPos, footPos, legAngle, headPos, bot, safeLanding };
   if (typeof module !== 'undefined') module.exports = root.Phys;
 })(typeof window !== 'undefined' ? window : globalThis);

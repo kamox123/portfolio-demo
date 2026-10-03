@@ -28,6 +28,8 @@
   <div class="chip" id="hCoinChip"><span class="coinI" data-icon="coin"></span><span id="hCoins">0</span></div>
   <div class="chip deaths" title="Падения"><span class="coinI" data-icon="bonk"></span><span id="hDeaths">0</span></div>
 </div>
+<div id="hud2" class="hud2"><div class="hstars" id="hStars" data-n="0"></div><div class="chip"><span class="coinI" data-icon="clock"></span><span id="hTime">0:00</span></div>
+</div>
 <div id="fallCard" class="fallcard hidden"></div>
 <div id="hint" class="hint hidden"></div>
 <div id="banner" class="banner hidden"></div>
@@ -84,9 +86,9 @@
 
 <!-- пауза / победа / поражение -->
 <div class="modal hidden" id="mPause"><div class="card"><h2>ПАУЗА</h2>
-  <button class="act" id="pResume">Продолжить</button><button class="act alt" id="pCheckpoint">С контрольной точки</button><button class="act alt" id="pRestart">Заново</button><button class="act alt" id="pMenu">В меню</button></div></div>
-<div class="modal hidden" id="mWin"><div class="card"><h2 class="gold">УРОВЕНЬ ПРОЙДЕН!</h2><div class="stars" id="wStars"></div><p id="wText"></p>
-  <button class="act" id="wNext">Дальше</button><button class="act alt" id="wRetry">Ещё раз</button><button class="act alt" id="wMenu">В меню</button></div></div>
+  <button class="act" id="pResume">ПРОДОЛЖИТЬ</button><button class="act alt" id="pCheckpoint">С контрольной точки</button><button class="act alt" id="pRestart">Начать заново</button><button class="act alt" id="pSettings">Настройки</button><button class="act alt" id="pMenu">Выйти в меню</button></div></div>
+<div class="modal hidden" id="mWin"><div class="card wincard"><div class="ribbon">УРОВЕНЬ ПРОЙДЕН!</div><div class="stars" id="wStars"></div><div class="record hidden" id="wRecord">НОВЫЙ РЕКОРД!</div><div id="wText"></div>
+  <button class="act" id="wNext">Дальше</button><button class="act alt" id="wRetry">ПОВТОРИТЬ</button><button class="act alt" id="wMenu">В МЕНЮ</button></div></div>
 <div class="modal hidden" id="mLose"><div class="card"><h2>УПС!</h2><p id="lText"></p>
   <button class="act" id="lCheckpoint">С контрольной точки</button><button class="act alt" id="lRestart">С начала уровня</button><button class="act alt" id="lMenu">В меню</button></div></div>
 <div class="modal hidden" id="mConfirm"><div class="card"><h2>Точно?</h2><p>Пропадут монеты, открытые уровни и персонажи.</p>
