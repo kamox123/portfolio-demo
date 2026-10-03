@@ -20,6 +20,8 @@
     maxDrop: 1.5,        // ниже этого ходуля не дотянется, м
     bodyLag: 0.12,       // насколько тело отстаёт от ноги при переносе веса (0..0.4)
     sway: 1.0,           // сила раскачивания тела после шага
+    wobbleMargin: 0.3,   // за maxSpread ещё можно устоять — в этом запасе начинается пошатывание, м
+    wobbleTime: 1.0,     // сколько секунд даётся на то, чтобы свести ноги обратно, иначе упадёт, с
   };
 
 
@@ -354,6 +356,7 @@
     'Не дотянулся до опоры': 'Слишком высоко или слишком низко. Подойди ближе и шагни ещё раз.',
     'Нога ударилась о препятствие': 'Веди палец чуть вверх — нога поднимется выше и перешагнёт.',
     'Платформа развела ноги': 'На движущуюся платформу вставай обеими ногами или сразу шагай дальше.',
+    'Не удержал равновесие': 'Ноги были расставлены слишком широко. Как только почувствуешь шатание — быстро делай следующий шаг, сводя ноги ближе.',
     'Ходуля ушла под воду!': 'Ставь ногу на берег или льдину, а не в воду.',
     'Наступил на шипы!': 'Перешагни шипы длинным шагом.',
     'Сбило лопастью!': 'Подожди, пока лопасть пройдёт, и шагай сразу за ней.',
@@ -373,6 +376,7 @@
       active: 1, swing: null, queue: null, H: { x: sx, y: 0 }, hv: { x: 0, y: 0 },
       s: 0, legs: [{}, {}], ta: 0, tw: 0, lean: 0,
       checkpoint: fromCheckpoint, coinsTaken: new Set(), coinsGot: 0, events: [], deadT: 0, winT: 0,
+      wobbling: false, wobbleT: 0,
       // падение: маятник вокруг стопы
       P: null, th: 0, w: 0, Ls: L, fallV: 0, splash: false,
     };
@@ -468,14 +472,17 @@
     if (surf.mat === 'water') { g.splash = true; return die(g, 'Ходуля ушла под воду!'); }
     if (surf.mat === 'spikes') return die(g, 'Наступил на шипы!');
     if (surf.y - other.y > CFG.maxRise || other.y - surf.y > CFG.maxDrop) return die(g, 'Не дотянулся до опоры');
-    if (Math.abs(f.x - other.x) > CFG.maxSpread) return die(g, 'Ноги разъехались');
+    const spreadNow = Math.abs(f.x - other.x);
+    if (spreadNow > CFG.maxSpread + CFG.wobbleMargin) return die(g, 'Ноги разъехались');
     if (nearEdge(g, f.x, f.y)) { f.slide = Math.sign((surface(g.lv, f.x - CFG.edgeSlip, g.t, f.y + 0.3).y < f.y - 0.25 ? -1 : 1)) * 0.6; g.events.push('slip'); return die(g, 'Нога соскользнула с края'); }
     attachFoot(g, f, surf);
     if (surf.mat === 'ice') f.slide = (f.x - sw.from.x) * 0.18; // на льду стопа проезжает дальше
     if (surf.mat === 'bounce') { g.events.push('bounce'); f.bounce = true; }
     g.events.push('land');
+    if (spreadNow > CFG.maxSpread) { if (!g.wobbling) g.events.push('wobble'); g.wobbling = true; }
+    else { g.wobbling = false; g.wobbleT = 0; }
     g.active = 1 - a;           // после постановки активной становится другая нога
-    g.lastStep = { len: Math.abs(f.x - other.x), t: g.t };
+    g.lastStep = { len: spreadNow, t: g.t };
     g.swing = null;
   }
 
@@ -528,10 +535,15 @@
       } else {
         // обе ноги стоят: тело жёстко между ними
         if (g.F.some((f) => f.off)) return die(g, 'Платформа развела ноги', 'Платформа уехала из-под ноги. Переходи на неё обеими ногами или шагай сразу дальше.');
-        if (Math.abs(g.F[0].x - g.F[1].x) > CFG.maxSpread + 0.15) return die(g, g.F.some((f) => f.att) ? 'Платформа развела ноги' : 'Ноги разъехались');
+        if (Math.abs(g.F[0].x - g.F[1].x) > CFG.maxSpread + CFG.wobbleMargin) return die(g, g.F.some((f) => f.att) ? 'Платформа развела ноги' : 'Ноги разъехались');
         const H = standHip(g);
         if (!H) return die(g, 'Ноги разъехались');
         g.H = H;
+        // пошатывание: ноги расставлены шире нормы — есть немного времени, чтобы свести их обратно
+        if (g.wobbling) {
+          g.wobbleT += dt;
+          if (g.wobbleT > CFG.wobbleTime) return die(g, 'Не удержал равновесие');
+        }
         if (g.queue) { const q = g.queue; g.queue = null; command(g, q.dist, q.up); }
       }
       // скорость бедра — для раскачивания тела

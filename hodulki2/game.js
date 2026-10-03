@@ -267,7 +267,7 @@
     animateHero();
   }
   // ---------- настройки ----------
-  const PHYS_LABELS = { gravity: 'Гравитация (падение)', legLength: 'Длина ходуль', maxSpread: 'Насколько широко можно расставить ноги', maxStep: 'Самый длинный шаг', swingTime: 'Время шага', swingPerMeter: 'Замедление длинного шага', stepLift: 'Высота подъёма ноги', edgeSlip: 'Опасная зона у края', maxRise: 'На сколько можно шагнуть вверх', maxDrop: 'На сколько можно шагнуть вниз', bodyLag: 'Запаздывание тела', sway: 'Раскачивание тела' };
+  const PHYS_LABELS = { gravity: 'Гравитация (падение)', legLength: 'Длина ходуль', maxSpread: 'Насколько широко можно расставить ноги', maxStep: 'Самый длинный шаг', swingTime: 'Время шага', swingPerMeter: 'Замедление длинного шага', stepLift: 'Высота подъёма ноги', edgeSlip: 'Опасная зона у края', maxRise: 'На сколько можно шагнуть вверх', maxDrop: 'На сколько можно шагнуть вниз', bodyLag: 'Запаздывание тела', sway: 'Раскачивание тела', wobbleMargin: 'Запас перед потерей равновесия', wobbleTime: 'Время на восстановление баланса' };
   function renderSettings() {
     $('oSfx').value = save.sfx; $('oMusic').value = save.music; $('oSound').checked = save.sound; $('oMusicOn').checked = save.musicOn; $('oShake').checked = save.shake; $('oVibe').checked = save.vibe;
     const rows = $('physRows'); rows.innerHTML = '';
@@ -398,6 +398,7 @@
         if (e === 'land') { buzz(12); Snd.sfx.step(); const f = g.F[1 - g.active]; dust(f.x, f.y, 7, 1); burst(f.x, f.y + 0.05, 6, ['#8a5a32', '#6b4424', '#a8d870'], 0.6, 2, 0.04); lastLand = performance.now() / 1000; $('legChip').dataset.leg = g.active; }
         if (e === 'lift') Snd.sfx.lift();
         if (e === 'bounce') { Snd.sfx.bounce(); const f = g.F[1 - g.active]; burst(f.x, f.y, 12, ['#ff6fb5', '#fff'], 1, 3); }
+        if (e === 'wobble') { Snd.sfx.scrape(); buzz(25); if (save.shake) shake = Math.max(shake, 0.12); banner('Теряешь равновесие! Сведи ноги'); }
         if (e === 'coin') { Snd.sfx.coin(); save.coins++; persist(); const k2 = [...g.coinsTaken].pop(), cc = g.lv.coins[k2] || [hipPos(g).x, hipPos(g).y + 1.5]; burst(cc[0], cc[1], 12, ['#ffcf3f', '#fff3a0', '#ffffff'], 0.9, 1.5, 0.05); flash.push({ x: cc[0], y: cc[1], t: 0 }); flyCoins.push({ x: V.sx(cc[0]), y: V.sy(cc[1]), t: 0 }); floaters.push({ x: cc[0], y: cc[1] + 0.4, t: 0, text: '+1' }); }
         if (e === 'checkpoint') { cpAct[g.checkpoint] = performance.now() / 1000; buzz([15, 40, 15]); Snd.sfx.checkpoint(); banner('Контрольная точка!'); const cp = g.lv.checkpoints[g.checkpoint]; burst(cp[0], cp[1] + 2.3, 20, ['#3fbf5a', '#fff', '#ffcf3f'], 1.2, 3); [$('hCp1'), $('hCp2')].forEach((el, k) => el.classList.toggle('on', g.checkpoint >= k)); }
         if (e === 'fall') { const H0 = hipPos(g); dust(H0.x, surface(g.lv, H0.x, g.t, H0.y).y, 14, 1.6); buzz([40, 50, 90]); if (g.splash) Snd.sfx.splash(); else Snd.sfx.fall(); if (save.shake) shake = 0.45; slowmo = 0.5; onLose(); if (g.splash && g.P) burst(g.P.x, g.P.y, 30, ['#9fdcff', '#fff'], 1.4, 4); }
@@ -441,7 +442,9 @@
     const act = g.active, actCol = act === 0 ? '#4aa3ff' : '#ff8a2a';
     aimAmt += ((aim.on && playing ? Math.min(1, Math.abs(aim.dist) / 1.6 + aim.up * 0.5) : 0) - aimAmt) * Math.min(1, dt * 12);
     const spread = Math.abs(g.F[0].x - g.F[1].x) / CFG.maxSpread;
-    const wobble = g.state === 'play' ? Math.max(0, (spread - 0.78) / 0.22) + Math.max(0, Math.abs(g.ta) - 0.35) * 2 : 0;
+    const wobbleFrac = g.wobbling ? Math.min(1, g.wobbleT / CFG.wobbleTime) : 0;
+    const wobble = g.state === 'play' ? Math.max(0, (spread - 0.78) / 0.22) + Math.max(0, Math.abs(g.ta) - 0.35) * 2 + (g.wobbling ? 0.6 + 0.4 * wobbleFrac : 0) : 0;
+    if (g.wobbling && save.shake && mode === 'play') shake = Math.max(shake, 0.04 + 0.14 * wobbleFrac);
     const anim = { aim: aimAmt, aimDir: aim.on ? aim.dist : 0, swing: g.swing ? g.swing.t / g.swing.T : 0, swingLeg: g.swing ? g.swing.a : -1, landT: performance.now() / 1000 - lastLand, wobble };
     const mood = g.state === 'dead' ? 'dead' : g.state === 'win' ? 'win' : 'idle';
     Gfx.drawHeroShadows(ctx, V, g);
