@@ -81,6 +81,7 @@
     { title: 'ДЛИНА СВАЙПА = ДЛИНА ШАГА', text: 'Короткий свайп — маленький шаг, длинный — большой. Метка показывает, куда встанет нога.' },
     { title: 'НЕ ШАГАЙ СЛИШКОМ ШИРОКО', text: 'Если ноги окажутся слишком далеко друг от друга — они разъедутся. И не ставь ногу на самый край.' },
     { title: 'ВЕДИ ЧУТЬ ВВЕРХ', text: 'Свайп вправо-вверх поднимает ногу выше — так перешагивают брёвна и ступеньки.' },
+    { title: 'А ТЕПЕРЬ ПРЫГНИ', text: 'Быстрый резкий свайп строго вверх, без наклона в сторону, — это настоящий прыжок: обе ходули оторвутся от земли. Попробуй!' },
     { title: 'ОТЛИЧНО!', text: 'Собирай монеты и дойди до финиша. Флажки по пути — контрольные точки.' },
   ];
   function tutorial(stage) {
@@ -97,12 +98,15 @@
   // ================= УПРАВЛЕНИЕ =================
   // Свайп в любом месте экрана: вправо — шаг вперёд, влево — назад, длина свайпа — длина шага,
   // вверх — нога поднимается выше (перешагнуть препятствие). Отпустил палец — нога летит к метке.
+  // Отдельно: быстрый резкий свайп строго вверх (почти без горизонтали) — это НАСТОЯЩИЙ ПРЫЖОК,
+  // а не высокий шаг: распознаём его по скорости и «вертикальности» свайпа, а не по длине.
   function swipeScale() { return Math.max(180, Math.min(W, H) * 0.62); }
   function updateAim() {
     const s = swipeScale();
     aim.dist = Math.sign(aim.dx) * Math.min(CFG.maxStep, (Math.abs(aim.dx) / s) * 3.2);
     aim.up = Math.max(0, Math.min(1, -aim.dy / (s * 0.55)));
   }
+  let pendingJump = null;
   window.addEventListener('pointerdown', (e) => {
     if (mode !== 'play' || aim.on || e.target.closest('button, .modal, .screen, input, details')) return;
     e.preventDefault(); Snd.unlock();
@@ -112,19 +116,32 @@
   const release = (e) => {
     if (!aim.on || (e && e.pointerId !== aim.id)) return;
     aim.on = false;
-    if (mode === 'play' && (Math.abs(aim.dist) >= 0.15 || aim.up >= 0.15)) { pendingCmd = { dist: aim.dist, up: aim.up }; if (!tut) hint(''); }
+    if (mode !== 'play') return;
+    const s = swipeScale(), vert = -aim.dy, horiz = Math.abs(aim.dx);
+    const elapsed = Math.max(0.03, (performance.now() - aim.t0) / 1000);
+    // прыжок: быстрый ("флик") свайп почти строго вверх; обычный высокий шаг обычно медленнее и с горизонталью
+    const isJump = !g.swing && !g.jump && vert > s * 0.16 && vert > horiz * 1.5 && vert / elapsed > s * 2.6;
+    if (isJump) {
+      const power = Math.max(0, Math.min(1, (vert / s - 0.16) / 0.55));
+      const drift = Math.sign(aim.dx) * Math.min(CFG.jumpMaxDrift, (horiz / s) * 3.0);
+      pendingJump = { power, drift }; if (!tut) hint('');
+    } else if (Math.abs(aim.dist) >= 0.15 || aim.up >= 0.15) { pendingCmd = { dist: aim.dist, up: aim.up }; if (!tut) hint(''); }
   };
   window.addEventListener('pointerup', release); window.addEventListener('pointercancel', release);
   window.addEventListener('blur', () => { aim.on = false; });
   document.addEventListener('touchstart', (e) => { if (!e.target.closest('button, .modal, .screen, input, details, summary')) e.preventDefault(); }, { passive: false });
   document.addEventListener('contextmenu', (e) => e.preventDefault());
-  // клавиатура: держи → (или D) — шаг растёт; ↑ — выше; отпусти — шаг. ← (A) — шаг назад
+  // клавиатура: держи → (или D) — шаг растёт; ↑ — выше; отпусти — шаг. ← (A) — шаг назад.
+  // ↑/W нажатая САМА ПО СЕБЕ (без зажатого направления) — отдельный прыжок, а не высокий шаг.
   const kb = { dir: 0, t0: 0, up: false };
   window.addEventListener('keydown', (e) => {
     if (e.repeat) return;
     const d = e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'Space' ? 1 : e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : 0;
     if (d && mode === 'play' && !kb.dir) { kb.dir = d; kb.t0 = performance.now(); e.preventDefault(); Snd.unlock(); Object.assign(aim, { on: true, id: 'kb', dx: 0, dy: 0 }); }
-    if (e.code === 'ArrowUp' || e.code === 'KeyW') kb.up = true;
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') {
+      if (!kb.dir && mode === 'play' && g && !g.swing && !g.jump) { pendingJump = { power: 0.6, drift: 0 }; Snd.unlock(); }
+      else kb.up = true;
+    }
     if (e.code === 'Escape' && mode === 'play') pause();
     if (e.code === 'KeyR' && (mode === 'play' || mode === 'lose')) startLevel(world, level);
   });
@@ -275,7 +292,7 @@
     animateHero();
   }
   // ---------- настройки ----------
-  const PHYS_LABELS = { gravity: 'Гравитация (падение)', legLength: 'Длина ходуль', maxSpread: 'Насколько широко можно расставить ноги', maxStep: 'Самый длинный шаг', swingTime: 'Время шага', swingPerMeter: 'Замедление длинного шага', stepLift: 'Высота подъёма ноги', edgeSlip: 'Опасная зона у края', maxRise: 'На сколько можно шагнуть вверх', maxDrop: 'На сколько можно шагнуть вниз', bodyLag: 'Запаздывание тела', sway: 'Раскачивание тела', wobbleMargin: 'Запас перед потерей равновесия', wobbleTime: 'Время на восстановление баланса' };
+  const PHYS_LABELS = { gravity: 'Гравитация (падение)', legLength: 'Длина ходуль', maxSpread: 'Насколько широко можно расставить ноги', maxStep: 'Самый длинный шаг', swingTime: 'Время шага', swingPerMeter: 'Замедление длинного шага', stepLift: 'Высота подъёма ноги', edgeSlip: 'Опасная зона у края', maxRise: 'На сколько можно шагнуть вверх', maxDrop: 'На сколько можно шагнуть вниз', bodyLag: 'Запаздывание тела', sway: 'Раскачивание тела', wobbleMargin: 'Запас перед потерей равновесия', wobbleTime: 'Время на восстановление баланса', jumpForce: 'Сила слабого прыжка (подскок)', jumpForceMax: 'Сила сильного прыжка', jumpGravity: 'Гравитация в прыжке', jumpMaxDrift: 'Горизонтальная скорость в прыжке', jumpMaxDrop: 'На сколько ниже взлёта можно приземлиться', jumpFailSpeed: 'Скорость удара — порог провала', jumpWobbleSpeed: 'Скорость удара — порог шаткого приземления' };
   function renderSettings() {
     $('oSfx').value = save.sfx; $('oMusic').value = save.music; $('oSound').checked = save.sound; $('oMusicOn').checked = save.musicOn; $('oShake').checked = save.shake; $('oVibe').checked = save.vibe;
     const rows = $('physRows'); rows.innerHTML = '';
@@ -396,6 +413,7 @@
       if (!g) break;
       if (mode === 'pause') continue;
       prevH.x = g.H.x; prevH.y = g.H.y; prevF0.x = g.F[0].x; prevF0.y = g.F[0].y; prevF1.x = g.F[1].x; prevF1.y = g.F[1].y; prevTa = g.ta;
+      if (mode === 'play' && pendingJump) { Phys.jump(g, pendingJump.power, pendingJump.drift); pendingJump = null; }
       let cmd = null;
       if (mode === 'play') { cmd = pendingCmd; pendingCmd = null; if (DEMO) cmd = Phys.bot(g); }
       else if (mode === 'menu') cmd = Phys.bot(g);
@@ -404,10 +422,13 @@
         if (mode !== 'play' && mode !== 'win' && mode !== 'lose') continue;
         if (e === 'bump' || e === 'slip') Snd.sfx.bump();
         if (e === 'land' && tut) { tut.steps++; const st = [1, 2, 4, 6, 8]; for (let k = 0; k < st.length; k++) if (tut.stage === k && tut.steps >= st[k]) { tutorial(k + 1); break; } }
+        if (e === 'jumpland' && tut && tut.stage === 5) tutorial(6);
         if (e === 'land') { buzz(12); Snd.sfx.step(); const f = g.F[1 - g.active]; dust(f.x, f.y, 7, 1); burst(f.x, f.y + 0.05, 6, ['#8a5a32', '#6b4424', '#a8d870'], 0.6, 2, 0.04); lastLand = performance.now() / 1000; $('legChip').dataset.leg = g.active; }
         if (e === 'lift') Snd.sfx.lift();
         if (e === 'bounce') { Snd.sfx.bounce(); const f = g.F[1 - g.active]; burst(f.x, f.y, 12, ['#ff6fb5', '#fff'], 1, 3); }
         if (e === 'wobble') { Snd.sfx.scrape(); buzz(25); if (save.shake) shake = Math.max(shake, 0.12); banner('Теряешь равновесие! Сведи ноги'); }
+        if (e === 'jumpstart') { buzz(15); Snd.sfx.jump(); dust(g.F[0].x, g.F[0].y, 5, 0.9); dust(g.F[1].x, g.F[1].y, 5, 0.9); if (save.shake) shake = Math.max(shake, 0.05); }
+        if (e === 'jumpland') { buzz(20); Snd.sfx.jumpLand(); dust(g.F[0].x, g.F[0].y, 9, 1.3); dust(g.F[1].x, g.F[1].y, 9, 1.3); burst((g.F[0].x + g.F[1].x) / 2, (g.F[0].y + g.F[1].y) / 2 + 0.1, 6, ['#d9c9a8', '#fff', '#a8d870'], 0.6, 1.8, 0.04); if (save.shake) shake = Math.max(shake, 0.16); }
         if (e === 'coin') { Snd.sfx.coin(); save.coins++; persist(); const k2 = [...g.coinsTaken].pop(), cc = g.lv.coins[k2] || [hipPos(g).x, hipPos(g).y + 1.5]; burst(cc[0], cc[1], 12, ['#ffcf3f', '#fff3a0', '#ffffff'], 0.9, 1.5, 0.05); flash.push({ x: cc[0], y: cc[1], t: 0 }); flyCoins.push({ x: V.sx(cc[0]), y: V.sy(cc[1]), t: 0 }); floaters.push({ x: cc[0], y: cc[1] + 0.4, t: 0, text: '+1' }); }
         if (e === 'checkpoint') { cpAct[g.checkpoint] = performance.now() / 1000; buzz([15, 40, 15]); Snd.sfx.checkpoint(); banner('Контрольная точка!'); const cp = g.lv.checkpoints[g.checkpoint]; burst(cp[0], cp[1] + 2.3, 20, ['#3fbf5a', '#fff', '#ffcf3f'], 1.2, 3); [$('hCp1'), $('hCp2')].forEach((el, k) => el.classList.toggle('on', g.checkpoint >= k)); }
         if (e === 'fall') { const H0 = hipPos(g); dust(H0.x, surface(g.lv, H0.x, g.t, H0.y).y, 14, 1.6); buzz([40, 50, 90]); if (g.splash) Snd.sfx.splash(); else Snd.sfx.fall(); if (save.shake) shake = 0.45; slowmo = 0.5; onLose(); if (g.splash && g.P) burst(g.P.x, g.P.y, 30, ['#9fdcff', '#fff'], 1.4, 4); }
@@ -468,8 +489,8 @@
     const anim = { aim: aimAmt, aimDir: aim.on ? aim.dist : 0, swing: g.swing ? g.swing.t / g.swing.T : 0, swingLeg: g.swing ? g.swing.a : -1, landT: performance.now() / 1000 - lastLand, wobble };
     const mood = g.state === 'dead' ? 'dead' : g.state === 'win' ? 'win' : 'idle';
     Gfx.drawHeroShadows(ctx, V, g);
-    // подсказка шага: дуга и метка, куда встанет нога
-    if (playing && g.state !== 'dead' && aim.on && !g.swing && (Math.abs(aim.dist) > 0.05 || aim.up > 0.05)) {
+    // подсказка шага: дуга и метка, куда встанет нога (в полёте нет отдельной опорной ноги — не показываем)
+    if (playing && g.state !== 'dead' && aim.on && !g.swing && !g.jump && (Math.abs(aim.dist) > 0.05 || aim.up > 0.05)) {
       const pv = Phys.preview(g, aim.dist, aim.up);
       ctx.setLineDash([7, 8]); ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 6;
       ctx.beginPath(); pv.pts.forEach((p, i) => (i ? ctx.lineTo(V.sx(p.x), V.sy(p.y) + 2) : ctx.moveTo(V.sx(p.x), V.sy(p.y) + 2))); ctx.stroke();
@@ -483,13 +504,13 @@
       const lbl = Math.abs(aim.dist).toFixed(1) + ' м'; ctx.font = `900 ${Math.round(PPM * 0.3)}px Rubik,sans-serif`; ctx.textAlign = 'center';
       ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(30,20,10,.75)'; ctx.strokeText(lbl, mx, my - PPM * 0.62); ctx.fillStyle = '#fff'; ctx.fillText(lbl, mx, my - PPM * 0.62); ctx.textAlign = 'left';
     }
-    // опорная нога — мягкое зелёное кольцо
-    if (playing && g.state === 'play') {
+    // опорная нога — мягкое зелёное кольцо (в прыжке опорной ноги нет — обе в воздухе)
+    if (playing && g.state === 'play' && !g.jump) {
       const sf = g.F[1 - act];
       ctx.strokeStyle = 'rgba(90,255,150,.75)'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.ellipse(V.sx(sf.x), V.sy(sf.y) + 1, PPM * 0.28, PPM * 0.08, 0, 0, 7); ctx.stroke();
     }
-    const glow = [false, false]; if (playing && g.state === 'play' && !g.swing) glow[act] = true;
+    const glow = [false, false]; if (playing && g.state === 'play' && !g.swing && !g.jump) glow[act] = true;
     Art.drawCharacter(ctx, charOf(), stiltOf(), { hx: V.sx(h.x), hy: V.sy(h.y), ta: g.ta, a: [legAngle(g, 0), legAngle(g, 1)], L: Ls, t, mood, legCol: ['#4aa3ff', '#ff8a2a'], held: glow, speed: (g.hv ? g.hv.x : 0) / 2.5, anim }, PPM);
     if (g.state === 'dead' && g.deadT > 0.5) { const hd = headPos(g); Art.drawDizzy(ctx, V.sx(hd.x), V.sy(hd.y + 0.6), PPM, t); }
     if (forest) { Gfx.drawGroundDeco(ctx, V, g, g.lv.segs.filter((s) => s[0] !== s[2] && s[4] === 'ground'), true); }

@@ -40,6 +40,8 @@
     fall: () => { tone(420, 0.6, 'sawtooth', 0.07, -340); noise(0.35, 0.35, 300); setTimeout(() => noise(0.2, 0.4, 200), 300); },
     splash: () => { noise(0.5, 0.4, 1500, 'bandpass'); tone(300, 0.3, 'sine', 0.1, -200); },
     bounce: () => tone(220, 0.3, 'sine', 0.25, 500),
+    jump: () => { tone(300, 0.12, 'sine', 0.22, 260); noise(0.07, 0.18, 1000); },
+    jumpLand: () => { tone(150, 0.14, 'triangle', 0.24, -90); noise(0.14, 0.32, 450); },
     checkpoint: () => [659, 784, 988].forEach((f, i) => tone(f, 0.16, 'triangle', 0.14, 0, i * 0.08)),
     win: () => [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => tone(f, 0.25, 'triangle', 0.16, 0, i * 0.09)),
     unlock: () => { [392, 523, 659, 784, 1047].forEach((f, i) => tone(f, 0.2, 'square', 0.06, 0, i * 0.06)); tone(1568, 0.5, 'sine', 0.1, 0, 0.35); },

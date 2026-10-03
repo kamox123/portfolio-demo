@@ -22,6 +22,13 @@
     sway: 1.0,           // сила раскачивания тела после шага
     wobbleMargin: 0.3,   // за maxSpread ещё можно устоять — в этом запасе начинается пошатывание, м
     wobbleTime: 1.0,     // сколько секунд даётся на то, чтобы свести ноги обратно, иначе упадёт, с
+    jumpForce: 3.2,       // вертикальная скорость при слабом прыжке (подскок), м/с
+    jumpForceMax: 5.4,    // вертикальная скорость при самом сильном прыжке, м/с
+    jumpGravity: 13,      // гравитация во время прыжка — отдельно от обычной, для упругого ощущения, м/с²
+    jumpMaxDrift: 2.4,    // сколько горизонтальной скорости можно унести в прыжок, м/с
+    jumpMaxDrop: 3.2,     // на сколько ниже точки взлёта можно приземлиться, не разбившись, м
+    jumpFailSpeed: 10,    // скорость падения при ударе о землю, после которой — провал приземления, м/с
+    jumpWobbleSpeed: 6.2, // скорость падения, после которой приземление становится неровным (пошатывание), м/с
   };
 
 
@@ -357,6 +364,7 @@
     'Нога ударилась о препятствие': 'Веди палец чуть вверх — нога поднимется выше и перешагнёт.',
     'Платформа развела ноги': 'На движущуюся платформу вставай обеими ногами или сразу шагай дальше.',
     'Не удержал равновесие': 'Ноги были расставлены слишком широко. Как только почувствуешь шатание — быстро делай следующий шаг, сводя ноги ближе.',
+    'Приземлился слишком жёстко': 'Прыгнул с слишком большой высоты или скорости. Приземляйся на поверхность примерно на уровне взлёта.',
     'Ходуля ушла под воду!': 'Ставь ногу на берег или льдину, а не в воду.',
     'Наступил на шипы!': 'Перешагни шипы длинным шагом.',
     'Сбило лопастью!': 'Подожди, пока лопасть пройдёт, и шагай сразу за ней.',
@@ -376,7 +384,7 @@
       active: 1, swing: null, queue: null, H: { x: sx, y: 0 }, hv: { x: 0, y: 0 },
       s: 0, legs: [{}, {}], ta: 0, tw: 0, lean: 0,
       checkpoint: fromCheckpoint, coinsTaken: new Set(), coinsGot: 0, events: [], deadT: 0, winT: 0,
-      wobbling: false, wobbleT: 0,
+      wobbling: false, wobbleT: 0, jump: null,
       // падение: маятник вокруг стопы
       P: null, th: 0, w: 0, Ls: L, fallV: 0, splash: false,
     };
@@ -435,6 +443,7 @@
   function command(g, dist, up = 0) {
     if (g.state === 'ready') g.state = 'play';
     if (g.state !== 'play') return false;
+    if (g.jump) return false; // в полёте обычный шаг не выполняется
     if (g.swing) { g.queue = { dist, up }; return true; }
     if (Math.abs(dist) < 0.15 && up < 0.15) return false; // случайное касание
     const plan = planStep(g, dist, up);
@@ -451,6 +460,47 @@
     const lift = CFG.stepLift + up * 0.9;
     for (let i = 0; i <= 16; i++) { const s = i / 16; pts.push({ x: from.x + (plan.tx - from.x) * s, y: from.y + (plan.ty - from.y) * s + lift * Math.sin(Math.PI * s) * (1 + Math.abs(plan.d) * 0.15) }); }
     return { pts, tx: plan.tx, ty: plan.ty, ok: plan.surf.y > -1e8, mat: plan.surf.mat };
+  }
+
+  // ---------- прыжок ----------
+  // Отдельная от обычного шага механика: обе ходули одновременно отрываются от земли,
+  // бедро летит по настоящей вертикальной физике (gravity тянет вниз, старт — толчок вверх).
+  // power — 0..1 (сила свайпа вверх: слабый подскок → сильный прыжок), drift — горизонтальная
+  // скорость, унесённая в прыжок (из горизонтальной составляющей того же свайпа).
+  function startJump(g, power = 0, drift = 0) {
+    if (g.state === 'ready') g.state = 'play';
+    if (g.state !== 'play' || g.swing || g.jump) return false;
+    const vy = CFG.jumpForce + (CFG.jumpForceMax - CFG.jumpForce) * Math.max(0, Math.min(1, power));
+    g.jump = { t: 0, vy, vx: Math.max(-CFG.jumpMaxDrift, Math.min(CFG.jumpMaxDrift, drift)), fromY: g.H.y, power };
+    g.F[0].att = null; g.F[1].att = null; g.F[0].lifted = true; g.F[1].lifted = true;
+    g.events.push('jumpstart');
+    return true;
+  }
+
+  // приземление после прыжка: отдельно проверяем обе стопы (при обычном шаге всегда одна)
+  function landJump(g) {
+    const j = g.jump, vyImpact = j.vy;
+    g.jump = null;
+    for (const i of [0, 1]) {
+      const f = g.F[i];
+      const surf = surface(g.lv, f.x, g.t, g.H.y + 0.5);
+      f.lifted = false;
+      if (surf.y < -1e8) return die(g, 'Нога ушла в пропасть');
+      f.y = surf.y;
+      if (surf.mat === 'water') { g.splash = true; return die(g, 'Ходуля ушла под воду!'); }
+      if (surf.mat === 'spikes') return die(g, 'Наступил на шипы!');
+    }
+    const spreadNow = Math.abs(g.F[0].x - g.F[1].x);
+    if (spreadNow > CFG.maxSpread + CFG.wobbleMargin) return die(g, 'Ноги разъехались');
+    if (j.fromY - Math.min(g.F[0].y, g.F[1].y) > CFG.jumpMaxDrop) return die(g, 'Приземлился слишком жёстко');
+    if (Math.abs(vyImpact) > CFG.jumpFailSpeed) return die(g, 'Приземлился слишком жёстко');
+    const H = standHip(g);
+    if (!H) return die(g, 'Ноги разъехались');
+    g.H = H;
+    attachFoot(g, g.F[0], surface(g.lv, g.F[0].x, g.t)); attachFoot(g, g.F[1], surface(g.lv, g.F[1].x, g.t));
+    g.events.push('jumpland');
+    if (spreadNow > CFG.maxSpread || Math.abs(vyImpact) > CFG.jumpWobbleSpeed) { if (!g.wobbling) g.events.push('wobble'); g.wobbling = true; }
+    else { g.wobbling = false; g.wobbleT = 0; }
   }
 
   function die(g, why, tip) {
@@ -507,7 +557,18 @@
       const prevH = { ...g.H };
       for (const f of g.F) if (!f.lifted) followFoot(g, f, dt);
       const sw = g.swing;
-      if (sw) {
+      if (g.jump) {
+        // прыжок: бедро летит по свободной вертикальной физике, обе ходули жёстко висят под ним
+        const j = g.jump;
+        j.t += dt; j.vy -= CFG.jumpGravity * dt;
+        g.H = { x: g.H.x + j.vx * dt, y: g.H.y + j.vy * dt };
+        g.F[0].x = g.H.x - 0.5; g.F[0].y = g.H.y - g.L;
+        g.F[1].x = g.H.x + 0.5; g.F[1].y = g.H.y - g.L;
+        if (j.vy <= 0) {
+          const u0 = surface(g.lv, g.F[0].x, g.t, g.H.y + 0.5), u1 = surface(g.lv, g.F[1].x, g.t, g.H.y + 0.5);
+          if ((u0.y > -1e8 && g.F[0].y <= u0.y) || (u1.y > -1e8 && g.F[1].y <= u1.y)) landJump(g);
+        }
+      } else if (sw) {
         const zone = g.lv.zones.find((z) => z.type === 'lowg' && g.H.x > z.x0 && g.H.x < z.x1);
         sw.t += dt / (zone ? 1.4 : 1);
         const s = Math.min(1, sw.t / sw.T), e = s * s * (3 - 2 * s); // плавный разгон и торможение
@@ -640,6 +701,6 @@
     void other;
     return null;
   }
-  root.Phys = { CFG, WORLDS, LEVELS_PER_WORLD, GV, levelCount, genLevel, surface, objState, rockY, pistonY, createGame, step, command, preview, planStep, hipPos, footPos, legAngle, headPos, bot, safeLanding };
+  root.Phys = { CFG, WORLDS, LEVELS_PER_WORLD, GV, levelCount, genLevel, surface, objState, rockY, pistonY, createGame, step, command, jump: startJump, preview, planStep, hipPos, footPos, legAngle, headPos, bot, safeLanding };
   if (typeof module !== 'undefined') module.exports = root.Phys;
 })(typeof window !== 'undefined' ? window : globalThis);
