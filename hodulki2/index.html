@@ -21,46 +21,54 @@
 <!-- маленький значок: какая нога сейчас шагнёт -->
 <div id="legChip" class="legchip hidden" data-leg="1"><i></i><span class="l">Л</span><span class="r">П</span></div>
 
-<!-- игровая панель -->
+<!-- игровая панель: только самое нужное -->
 <div id="hud" class="hidden">
-  <button class="ibtn" id="bPause" aria-label="Пауза">❚❚</button>
-  <div class="hud-mid"><div class="hud-title" id="hTitle">Лес 1-1</div><div class="prog"><i id="hBar"></i><b id="hCp1"></b><b id="hCp2"></b></div></div>
-  <div class="chip" id="hCoinChip"><span class="coin"></span><span id="hCoins">0</span></div>
-  <div class="chip deaths" title="Падения">💥 <span id="hDeaths">0</span></div>
+  <button class="ibtn" id="bPause" aria-label="Пауза" data-icon="pause"></button>
+  <div class="hud-mid"><div class="hud-title" id="hTitle">Лес 1-1</div><div class="prog"><i id="hBar"></i><b id="hCp1"></b><b id="hCp2"></b><span class="pflag" data-icon="flag"></span></div></div>
+  <div class="chip" id="hCoinChip"><span class="coinI" data-icon="coin"></span><span id="hCoins">0</span></div>
+  <div class="chip deaths" title="Падения"><span class="coinI" data-icon="bonk"></span><span id="hDeaths">0</span></div>
 </div>
 <div id="fallCard" class="fallcard hidden"></div>
 <div id="hint" class="hint hidden"></div>
 <div id="banner" class="banner hidden"></div>
 
-<!-- главное меню -->
+<!-- главное меню: живая сцена рисуется на холсте, здесь только надписи и кнопки -->
 <section class="screen" id="sMenu">
+  <div class="menu-coins chip"><span class="coinI" data-icon="coin"></span><span class="tCoins">0</span></div>
   <div class="logo"><span>ХОДУЛЬЩИК</span><small>ВТОРАЯ ЧАСТЬ</small></div>
-  <div class="menu">
-    <button class="big" id="mPlay">▶ ИГРАТЬ<small id="mPlaySub"></small></button>
-    <button id="mChars">🧍 ПЕРСОНАЖИ</button>
-    <button id="mWorlds">🗺️ МИРЫ</button>
-    <button id="mSettings">⚙️ НАСТРОЙКИ</button>
+  <div class="menu-space"></div>
+  <div class="menu-bottom">
+    <button class="playbtn" id="mPlay"><span class="pb-ico" data-icon="play"></span><span class="pb-txt">ИГРАТЬ<small id="mPlaySub"></small></span></button>
+    <div class="iconrow">
+      <button class="roundbtn" id="mChars"><span class="rb-ico" data-icon="hero"></span><span>Персонажи</span><i class="dot hidden" id="dotChars">!</i></button>
+      <button class="roundbtn" id="mWorlds"><span class="rb-ico" data-icon="map"></span><span>Миры</span></button>
+      <button class="roundbtn" id="mSettings"><span class="rb-ico" data-icon="gear"></span><span>Настройки</span></button>
+    </div>
   </div>
-  <div class="menu-coins chip"><span class="coin"></span><span class="tCoins">0</span></div>
 </section>
 
-<!-- миры -->
+<!-- миры и уровни: карта с тропинкой -->
 <section class="screen hidden" id="sWorlds">
-  <header><button class="ibtn" data-back>←</button><h2>МИРЫ</h2><div class="chip"><span class="coin"></span><span class="tCoins">0</span></div></header>
-  <div class="worlds" id="worldList"></div>
+  <header><button class="ibtn" data-back data-icon="back"></button><h2>МИРЫ</h2><div class="chip"><span class="coinI" data-icon="coin"></span><span class="tCoins">0</span></div></header>
+  <div class="wtabs" id="worldTabs"></div>
+  <div class="wmap" id="worldMap"></div>
 </section>
 
 <!-- персонажи -->
 <section class="screen hidden" id="sChars">
-  <header><button class="ibtn" data-back>←</button><h2>ПЕРСОНАЖИ</h2><div class="chip"><span class="coin"></span><span class="tCoins">0</span></div></header>
-  <div class="tabs"><button class="tab on" data-tab="chars">Герои</button><button class="tab" data-tab="stilts">Ходули</button></div>
-  <div class="hero"><canvas id="heroCv" width="360" height="420"></canvas><div><b id="heroName"></b><p id="heroInfo"></p><button class="act" id="heroBtn"></button></div></div>
-  <div class="grid" id="charGrid"></div>
+  <header><button class="ibtn" data-back data-icon="back"></button><h2>ПЕРСОНАЖИ</h2><div class="chip"><span class="coinI" data-icon="coin"></span><span class="tCoins">0</span></div></header>
+  <div class="tabs"><button class="tab on" data-tab="chars"><span data-icon="hero"></span>Герои</button><button class="tab" data-tab="stilts"><span data-icon="stilt"></span>Ходули</button></div>
+  <div class="stage">
+    <button class="arrow" id="hPrev" data-icon="back" aria-label="Предыдущий"></button>
+    <div class="podium"><canvas id="heroCv" width="420" height="520"></canvas></div>
+    <button class="arrow" id="hNext" data-icon="next" aria-label="Следующий"></button>
+  </div>
+  <div class="heroinfo"><b id="heroName"></b><p id="heroInfo"></p><button class="act" id="heroBtn"></button></div>
+  <div class="cards" id="charGrid"></div>
 </section>
-
 <!-- настройки -->
 <section class="screen hidden" id="sSettings">
-  <header><button class="ibtn" data-back>←</button><h2>НАСТРОЙКИ</h2><span></span></header>
+  <header><button class="ibtn" data-back data-icon="back"></button><h2>НАСТРОЙКИ</h2><span></span></header>
   <div class="rows">
     <label>Звуки включены <input type="checkbox" id="oSound"></label>
     <label>Громкость звуков <input type="range" min="0" max="1" step="0.05" id="oSfx"></label>
@@ -78,15 +86,17 @@
 <div class="modal hidden" id="mPause"><div class="card"><h2>ПАУЗА</h2>
   <button class="act" id="pResume">Продолжить</button><button class="act alt" id="pCheckpoint">С контрольной точки</button><button class="act alt" id="pRestart">Заново</button><button class="act alt" id="pMenu">В меню</button></div></div>
 <div class="modal hidden" id="mWin"><div class="card"><h2 class="gold">УРОВЕНЬ ПРОЙДЕН!</h2><div class="stars" id="wStars"></div><p id="wText"></p>
-  <button class="act" id="wNext">Дальше ▶</button><button class="act alt" id="wRetry">Ещё раз</button><button class="act alt" id="wMenu">В меню</button></div></div>
+  <button class="act" id="wNext">Дальше</button><button class="act alt" id="wRetry">Ещё раз</button><button class="act alt" id="wMenu">В меню</button></div></div>
 <div class="modal hidden" id="mLose"><div class="card"><h2>УПС!</h2><p id="lText"></p>
   <button class="act" id="lCheckpoint">С контрольной точки</button><button class="act alt" id="lRestart">С начала уровня</button><button class="act alt" id="lMenu">В меню</button></div></div>
 <div class="modal hidden" id="mConfirm"><div class="card"><h2>Точно?</h2><p>Пропадут монеты, открытые уровни и персонажи.</p>
   <button class="act danger" id="cYes">Да, сбросить</button><button class="act alt" id="cNo">Отмена</button></div></div>
 <div class="toast hidden" id="toast"></div>
 
+<script src="icons.js"></script>
 <script src="physics.js"></script>
 <script src="art.js"></script>
+<script src="gfx.js"></script>
 <script src="audio.js"></script>
 <script src="game.js"></script>
 </body>
