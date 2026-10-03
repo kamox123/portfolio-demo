@@ -7,6 +7,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Ходульщик 2</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<meta name="apple-mobile-web-app-title" content="Ходульщик">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@600;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -68,6 +72,7 @@
     <label>Поменять зоны местами (левая ↔ правая) <input type="checkbox" id="oSwap"></label>
     <label>Показывать кнопки ног <input type="checkbox" id="oPads"></label>
     <label>Тряска экрана <input type="checkbox" id="oShake"></label>
+    <label>Вибрация (Android) <input type="checkbox" id="oVibe"></label>
     <div class="help"><b>Управление.</b> Левая половина экрана — левая нога, правая — правая. Держишь — нога идёт вперёд, отпускаешь — опускается и встаёт. Нажми зону опорной ноги — вес перейдёт на другую, а эта поднимется. Веди палец вниз — нога пойдёт назад. На компьютере: <b>A / ←</b> — левая, <b>D / →</b> — правая, с <b>S</b> — назад.</div>
     <details><summary>Физика (для экспериментов)</summary><div id="physRows"></div><button class="act small" id="oPhysReset">Вернуть как было</button></details>
     <button class="act danger" id="oReset">Сбросить весь прогресс</button>

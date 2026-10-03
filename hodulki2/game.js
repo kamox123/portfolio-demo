@@ -9,7 +9,7 @@
 
   // ================= СОХРАНЕНИЕ =================
   const KEY = 'hodulki2-save';
-  const fresh = () => ({ tutorialDone: false, sound: true, musicOn: true, totalDeaths: 0, coins: 0, owned: ['novice'], stilts: ['wood'], sel: 'novice', stilt: 'wood', done: {}, cur: [0, 0], sfx: 0.8, music: 0.5, swap: false, pads: true, shake: true, phys: {} });
+  const fresh = () => ({ vibe: true, tutorialDone: false, sound: true, musicOn: true, totalDeaths: 0, coins: 0, owned: ['novice'], stilts: ['wood'], sel: 'novice', stilt: 'wood', done: {}, cur: [0, 0], sfx: 0.8, music: 0.5, swap: false, pads: true, shake: true, phys: {} });
   let save = fresh();
   try { save = Object.assign(fresh(), JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) {}
   const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {} };
@@ -25,14 +25,15 @@
 
   // ================= ЭКРАН И КАМЕРА =================
   let W = 0, H = 0, DPR = 1, PPM = 50;
+  let lowQ = false, slowT = 0; // упрощённая графика для слабых телефонов
   function resize() {
-    DPR = Math.min(2, window.devicePixelRatio || 1);
+    DPR = lowQ ? 1 : Math.min(2, window.devicePixelRatio || 1);
     W = window.innerWidth; H = window.innerHeight;
     cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   }
   window.addEventListener('resize', resize); resize();
   const cam = { x: 0, y: 2, zoom: 1 };
-  const V = { get W() { return W; }, get H() { return H; }, get PPM() { return PPM; }, cam, sx: (x) => (x - cam.x) * PPM + W * 0.36, sy: (y) => H * 0.56 - (y - cam.y) * PPM };
+  const V = { low: false, get W() { return W; }, get H() { return H; }, get PPM() { return PPM; }, cam, sx: (x) => (x - cam.x) * PPM + W * 0.36, sy: (y) => H * 0.56 - (y - cam.y) * PPM };
 
   // ================= СОСТОЯНИЕ ИГРЫ =================
   let g = null, mode = 'menu', world = 0, level = 0, deaths = 0, particles = [], shake = 0, slowmo = 0, tut = null, floaters = [];
@@ -196,7 +197,7 @@
   // ---------- настройки ----------
   const PHYS_LABELS = { gravity: 'Гравитация', walkingSpeed: 'Скорость ходьбы', legLength: 'Длина ходуль', legMass: 'Вес ноги', bodyMass: 'Вес тела', friction: 'Сцепление с землёй', movementForce: 'Сила шага', balanceStrength: 'Сила равновесия', legSpeed: 'Скорость ноги', stepDistance: 'Длина шага (угол)', fallThreshold: 'Порог падения', legSag: 'Как быстро опускается нога', damping: 'Затухание' };
   function renderSettings() {
-    $('oSfx').value = save.sfx; $('oMusic').value = save.music; $('oSound').checked = save.sound; $('oMusicOn').checked = save.musicOn; $('oSwap').checked = save.swap; $('oPads').checked = save.pads; $('oShake').checked = save.shake;
+    $('oSfx').value = save.sfx; $('oMusic').value = save.music; $('oSound').checked = save.sound; $('oMusicOn').checked = save.musicOn; $('oSwap').checked = save.swap; $('oPads').checked = save.pads; $('oShake').checked = save.shake; $('oVibe').checked = save.vibe;
     const rows = $('physRows'); rows.innerHTML = '';
     for (const [k, label] of Object.entries(PHYS_LABELS)) {
       const base = CFG_DEFAULT[k], l = document.createElement('label');
@@ -214,6 +215,7 @@
   $('oSwap').onchange = (e) => { save.swap = e.target.checked; persist(); };
   $('oPads').onchange = (e) => { save.pads = e.target.checked; persist(); };
   $('oShake').onchange = (e) => { save.shake = e.target.checked; persist(); };
+  $('oVibe').onchange = (e) => { save.vibe = e.target.checked; persist(); buzz(30); };
   $('oPhysReset').onclick = () => { Object.assign(CFG, CFG_DEFAULT); save.phys = {}; persist(); renderSettings(); toast('Физика как была'); };
   $('oReset').onclick = () => $('mConfirm').classList.remove('hidden');
   $('cNo').onclick = () => $('mConfirm').classList.add('hidden');
@@ -266,6 +268,9 @@
     onLose._t = setTimeout(() => { card.classList.add('hidden'); if (mode === 'lose') startLevel(world, level, lastCp, keep); }, g.tip ? 2600 : 1700);
   }
 
+  // вибрация (работает на Android; айфон в браузере её не поддерживает)
+  const buzz = (p) => { if (save.vibe && navigator.vibrate) try { navigator.vibrate(p); } catch (e) {} };
+
   // ================= ЧАСТИЦЫ =================
   function burst(x, y, n, colors, spd = 1, up = 3, size = 0.08) {
     if (particles.length > 260) return;
@@ -287,6 +292,7 @@
   function frame(now) {
     let dt = Math.min(0.05, (now - last) / 1000); last = now;
     fpsAvg = fpsAvg * 0.95 + (1 / Math.max(dt, 0.001)) * 0.05;
+    if (!lowQ && fpsAvg < 48) { slowT += dt; if (slowT > 2) { lowQ = true; V.low = true; resize(); } } else slowT = 0;
     const t = now / 1000;
     if (slowmo > 0) { slowmo -= dt; dt *= 0.35; }
     acc += dt;
@@ -304,13 +310,13 @@
         if (e === 'bump') Snd.sfx.bump();
         if (e === 'touch') Snd.sfx.touch();
         if (e === 'land' && tut) { tut.steps++; if (tut.stage === 0 && g.s === 1) tutorial(1); else if (tut.stage === 1 && g.s === 0) tutorial(2); else if (tut.stage === 2 && tut.steps >= 5) tutorial(3); else if (tut.stage === 3 && tut.steps >= 8) tutorial(4); else if (tut.stage === 4 && tut.steps >= 10) tutorial(5); }
-        if (e === 'land') { Snd.sfx.step(); const f = g.P; burst(f.x, f.y + 0.05, 6, ['rgba(255,255,255,.8)', 'rgba(200,180,150,.8)'], 0.5, 1.5, 0.05); }
+        if (e === 'land') { buzz(12); Snd.sfx.step(); const f = g.P; burst(f.x, f.y + 0.05, 6, ['rgba(255,255,255,.8)', 'rgba(200,180,150,.8)'], 0.5, 1.5, 0.05); }
         if (e === 'lift') Snd.sfx.lift();
         if (e === 'bounce') { Snd.sfx.bounce(); burst(g.P.x, g.P.y, 12, ['#ff6fb5', '#fff'], 1, 3); }
         if (e === 'coin') { Snd.sfx.coin(); save.coins++; persist(); $('hCoins').textContent = save.coins; const h = hipPos(g); burst(h.x, h.y + 1.5, 10, ['#ffcf3f', '#fff3a0'], 0.8, 2); floaters.push({ x: h.x, y: h.y + 2, t: 0, text: '+1' }); $('hCoinChip').classList.remove('bump'); void $('hCoinChip').offsetWidth; $('hCoinChip').classList.add('bump'); }
-        if (e === 'checkpoint') { Snd.sfx.checkpoint(); banner('Контрольная точка!'); const cp = g.lv.checkpoints[g.checkpoint]; burst(cp[0], cp[1] + 2.3, 20, ['#3fbf5a', '#fff', '#ffcf3f'], 1.2, 3); [$('hCp1'), $('hCp2')].forEach((el, k) => el.classList.toggle('on', g.checkpoint >= k)); }
-        if (e === 'fall') { if (g.splash) Snd.sfx.splash(); else Snd.sfx.fall(); if (save.shake) shake = 0.45; slowmo = 0.5; onLose(); if (g.splash) burst(g.P.x, g.P.y, 30, ['#9fdcff', '#fff'], 1.4, 4); }
-        if (e === 'win') { Snd.sfx.win(); const h = hipPos(g); burst(h.x, h.y + 2, 90, ['#ffcf3f', '#e5483a', '#3fbf5a', '#3a8bff', '#fff', '#ff6fb5'], 2.2, 5); onWin(); }
+        if (e === 'checkpoint') { buzz([15, 40, 15]); Snd.sfx.checkpoint(); banner('Контрольная точка!'); const cp = g.lv.checkpoints[g.checkpoint]; burst(cp[0], cp[1] + 2.3, 20, ['#3fbf5a', '#fff', '#ffcf3f'], 1.2, 3); [$('hCp1'), $('hCp2')].forEach((el, k) => el.classList.toggle('on', g.checkpoint >= k)); }
+        if (e === 'fall') { buzz([40, 50, 90]); if (g.splash) Snd.sfx.splash(); else Snd.sfx.fall(); if (save.shake) shake = 0.45; slowmo = 0.5; onLose(); if (g.splash) burst(g.P.x, g.P.y, 30, ['#9fdcff', '#fff'], 1.4, 4); }
+        if (e === 'win') { buzz([20, 60, 20, 60, 40]); Snd.sfx.win(); const h = hipPos(g); burst(h.x, h.y + 2, 90, ['#ffcf3f', '#e5483a', '#3fbf5a', '#3a8bff', '#fff', '#ff6fb5'], 2.2, 5); onWin(); }
       }
       if (mode === 'menu' && g.state !== 'play' && g.state !== 'ready' && (g.deadT > 2 || g.winT > 2)) g = createGame(save.cur[0], save.cur[1]);
     }
@@ -379,6 +385,8 @@
 
   // для проверки: #w2l3 — сразу мир 2 уровень 3; #demo — играет автопилот
   const m = location.hash.match(/w(\d)l(\d)/);
+  // приложение без интернета (только когда игра открыта с сайта, а не из файла)
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
   toMenu();
   if (m) startLevel(+m[1] - 1, +m[2] - 1);
   requestAnimationFrame(frame);

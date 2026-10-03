@@ -1,0 +1,16 @@
+﻿{
+  "name": "Ходульщик 2",
+  "short_name": "Ходульщик",
+  "description": "Игра про ходьбу на ходулях: 6 миров, 30 уровней, 8 персонажей.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#16213e",
+  "theme_color": "#16213e",
+  "lang": "ru",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

@@ -114,8 +114,8 @@
           pitFloor(x, w, k === 'floes' ? 'water' : pitKind); coinsOver(x, x + w, 3.5, 1); x += w; seg(x + 1.4, y); break;
         }
         case 'movV': {
-          seg(x + 1.4, y); const w = 2.6, h = 0.6 + r() * (0.4 + d * 0.4), x0 = x;
-          lv.objs.push({ type: 'plat', x0: x0 + 0.1, w: 2.4, y0: y + h / 2, ax: 0, ay: h / 2, per: 4 - d * 0.8 + r(), ph: r() * 6, look: 'lift' });
+          seg(x + 1.4, y); const w = 2.9, h = 0.5 + r() * (0.3 + d * 0.3), x0 = x;
+          lv.objs.push({ type: 'plat', x0: x0 + 0.1, w: 2.7, y0: y + h / 2, ax: 0, ay: h / 2, per: 4.6 - d * 0.6 + r(), ph: r() * 6, look: 'lift' });
           pitFloor(x0, w, pitKind); x = x0 + w; y += h; seg(x, y); seg(x + 1.8, y);
           lv.segs.push([x0 + w, y - h, x0 + w, y, 'wall']); coinsOver(x0, x0 + w, 3.6 + h, 1); break;
         }

@@ -102,7 +102,7 @@
       if (hash(i, 9) < 0.4) continue;
       const x = i * per3 - V.cam.x * V.PPM * k3 + hash(i, 4) * 90, w = 30 + hash(i, 5) * 30;
       if (theme === 'forest') {
-        const gr = ctx.createLinearGradient(x - w / 2, 0, x + w / 2, 0); gr.addColorStop(0, '#5b3a24'); gr.addColorStop(0.5, '#7a5134'); gr.addColorStop(1, '#4a2e1c');
+        const gr = V.low ? '#5b3a24' : ctx.createLinearGradient(x - w / 2, 0, x + w / 2, 0); if (!V.low) { gr.addColorStop(0, '#5b3a24'); gr.addColorStop(0.5, '#7a5134'); gr.addColorStop(1, '#4a2e1c'); }
         ctx.fillStyle = gr; ctx.fillRect(x - w / 2, -10, w, V.H); ctx.fillStyle = th.near; ctx.beginPath(); ctx.ellipse(x, 0, w * 2.4, V.H * 0.13, 0, 0, 7); ctx.fill();
       } else if (theme === 'construction') { // кран
         ctx.strokeStyle = '#e0a91e'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(x, V.H); ctx.lineTo(x, V.H * 0.12); ctx.lineTo(x + 200, V.H * 0.12); ctx.moveTo(x - 60, V.H * 0.12); ctx.lineTo(x, V.H * 0.12); ctx.stroke();
@@ -188,7 +188,7 @@
       }
       if (mat === 'bounce') { for (let x = a + 10; x < b; x += 24) { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, ya - d * 0.3, 4, 0, 7); ctx.fill(); } }
       if (mat === 'ice') { ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 2; for (let x = a + 14; x < b - 30; x += 70) { ctx.beginPath(); ctx.moveTo(x, ya - d * 0.3); ctx.lineTo(x + 24, ya - d * 0.3); ctx.stroke(); } }
-      if (theme === 'forest' && mat === 'ground') { ctx.fillStyle = th.top2; for (let x = a; x < b; x += 14) { const h = 4 + hash(Math.floor((x - a + V.cam.x * P) / 14), 2) * 6; ctx.fillRect(x, ya - d * 0.55 - h, 2, h); } }
+      if (theme === 'forest' && mat === 'ground' && !V.low) { ctx.fillStyle = th.top2; for (let x = a; x < b; x += 14) { const h = 4 + hash(Math.floor((x - a + V.cam.x * P) / 14), 2) * 6; ctx.fillRect(x, ya - d * 0.55 - h, 2, h); } }
     }
     // предметы
     for (const o of lv.objs) drawObj(ctx, V, o, g, th, theme, t);
