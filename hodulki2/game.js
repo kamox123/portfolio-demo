@@ -49,9 +49,17 @@
   // свайп: одна общая зона управления; нога выбирается сама и меняется после каждого шага
   const aim = { on: false, x0: 0, y0: 0, dx: 0, dy: 0, dist: 0, up: 0, id: null, t0: 0 };
   let pendingCmd = null;
+  // ---------- сглаживание отрисовки между кадрами физики ----------
+  // Физика считается фиксированными шагами по 1/60с, а кадры экрана идут на своей частоте
+  // (обычно не кратной 60). Без этого позиция героя (а за ней — камера, трава, земля, фон)
+  // «ступеньками» прыгает между физическими шагами. Поэтому для отрисовки берём не последнее
+  // физическое состояние напрямую, а интерполяцию между предыдущим и текущим шагом.
+  let prevH = { x: 0, y: 0 }, prevF0 = { x: 0, y: 0 }, prevF1 = { x: 0, y: 0 }, prevTa = 0;
+  const lerp = (a, b, k) => a + (b - a) * k;
+  function resetInterp() { if (!g) return; prevH = { x: g.H.x, y: g.H.y }; prevF0 = { x: g.F[0].x, y: g.F[0].y }; prevF1 = { x: g.F[1].x, y: g.F[1].y }; prevTa = g.ta; }
   function startLevel(w, i, fromCp = -1, keep = null) {
     world = w; level = i; save.cur = [w, i]; persist();
-    g = createGame(w, i, fromCp);
+    g = createGame(w, i, fromCp); resetInterp();
     if (keep) { g.time = keep.time; g.coinsTaken = keep.coinsTaken; g.coinsGot = keep.coinsGot; } else deaths = 0;
     if (!keep) tut = w === 0 && i === 0 && !save.tutorialDone ? { stage: 0, steps: 0, t: 0 } : null;
     const h = hipPos(g); cam.x = h.x + 1; cam.y = h.y - 1; cam.zoom = 1;
@@ -140,7 +148,7 @@
   function toMenu() {
     mode = 'menu'; ['mPause', 'mWin', 'mLose'].forEach((m) => $(m).classList.add('hidden'));
     // на фоне меню — демо-уровень
-    g = createGame(save.cur[0], save.cur[1]); world = save.cur[0];
+    g = createGame(save.cur[0], save.cur[1]); resetInterp(); world = save.cur[0];
     const [w, i] = nextLevel();
     $('mPlaySub').textContent = !nextLevel(true) ? 'Все уровни пройдены!' : `${WORLDS[w].name} · уровень ${i + 1}`;
     $('dotChars').classList.toggle('hidden', !CHARS.some((ch) => !save.owned.includes(ch.id) && ch.price <= save.coins));
@@ -387,6 +395,7 @@
       acc -= 1 / 60;
       if (!g) break;
       if (mode === 'pause') continue;
+      prevH.x = g.H.x; prevH.y = g.H.y; prevF0.x = g.F[0].x; prevF0.y = g.F[0].y; prevF1.x = g.F[1].x; prevF1.y = g.F[1].y; prevTa = g.ta;
       let cmd = null;
       if (mode === 'play') { cmd = pendingCmd; pendingCmd = null; if (DEMO) cmd = Phys.bot(g); }
       else if (mode === 'menu') cmd = Phys.bot(g);
@@ -404,10 +413,21 @@
         if (e === 'fall') { const H0 = hipPos(g); dust(H0.x, surface(g.lv, H0.x, g.t, H0.y).y, 14, 1.6); buzz([40, 50, 90]); if (g.splash) Snd.sfx.splash(); else Snd.sfx.fall(); if (save.shake) shake = 0.45; slowmo = 0.5; onLose(); if (g.splash && g.P) burst(g.P.x, g.P.y, 30, ['#9fdcff', '#fff'], 1.4, 4); }
         if (e === 'win') { buzz([20, 60, 20, 60, 40]); Snd.sfx.win(); const h = hipPos(g); burst(h.x, h.y + 2, 90, ['#ffcf3f', '#e5483a', '#3fbf5a', '#3a8bff', '#fff', '#ff6fb5'], 2.2, 5); whiteFlash = 0.35; onWin(); }
       }
-      if (mode === 'menu' && g.state !== 'play' && g.state !== 'ready' && (g.deadT > 2 || g.winT > 2)) g = createGame(save.cur[0], save.cur[1]);
+      if (mode === 'menu' && g.state !== 'play' && g.state !== 'ready' && (g.deadT > 2 || g.winT > 2)) { g = createGame(save.cur[0], save.cur[1]); resetInterp(); }
     }
     if (mode === 'menu') { menuScene(dt, t); requestAnimationFrame(frame); return; }
     if (!g) { requestAnimationFrame(frame); return; }
+    // на момент рендера подменяем позицию героя (и игровое время) на интерполированную/
+    // экстраполированную между последним и предпоследним физическим шагом — так камера,
+    // трава, земля и движущиеся платформы двигаются идеально плавно независимо от частоты
+    // кадров экрана. Сразу после отрисовки возвращаем настоящее состояние физики обратно.
+    const ialpha = acc / (1 / 60);
+    const realH = g.H, realF0x = g.F[0].x, realF0y = g.F[0].y, realF1x = g.F[1].x, realF1y = g.F[1].y, realTa = g.ta, realT = g.t;
+    g.H = { x: lerp(prevH.x, realH.x, ialpha), y: lerp(prevH.y, realH.y, ialpha) };
+    g.F[0].x = lerp(prevF0.x, realF0x, ialpha); g.F[0].y = lerp(prevF0.y, realF0y, ialpha);
+    g.F[1].x = lerp(prevF1.x, realF1x, ialpha); g.F[1].y = lerp(prevF1.y, realF1y, ialpha);
+    g.ta = lerp(prevTa, realTa, ialpha);
+    g.t = realT + acc;
     // камера: плавно за бедром, с запасом вперёд; при падении и победе — чуть ближе
     keyboardAim();
     const h = hipPos(g), speed = Math.abs(g.hv ? g.hv.x : 0) / 2.5;
@@ -490,6 +510,8 @@
       ctx.save(); ctx.translate(x, y); Gfx.coinFace(ctx, PPM * 0.22 * (1 - fc.t * 0.35), t * 9, t); ctx.restore(); return true;
     });
     if (whiteFlash > 0) { whiteFlash -= dt; ctx.fillStyle = `rgba(255,250,225,${Math.max(0, whiteFlash) * 1.6})`; ctx.fillRect(0, 0, W, H); }
+    // возвращаем настоящее (неинтерполированное) состояние физики — следующий шаг должен считаться от него
+    g.H = realH; g.F[0].x = realF0x; g.F[0].y = realF0y; g.F[1].x = realF1x; g.F[1].y = realF1y; g.ta = realTa; g.t = realT;
     requestAnimationFrame(frame);
   }
   // сцена главного меню: живой лес, холм, герой покачивается и иногда машет
