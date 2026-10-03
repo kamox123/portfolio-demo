@@ -37,17 +37,18 @@
 
   // ================= СОСТОЯНИЕ ИГРЫ =================
   let g = null, mode = 'menu', world = 0, level = 0, deaths = 0, particles = [], shake = 0, slowmo = 0, tut = null, floaters = [];
-  const input = { hold: [false, false], back: [false, false] };
+  // свайп: одна общая зона управления; нога выбирается сама и меняется после каждого шага
+  const aim = { on: false, x0: 0, y0: 0, dx: 0, dy: 0, dist: 0, up: 0, id: null, t0: 0 };
+  let pendingCmd = null;
   function startLevel(w, i, fromCp = -1, keep = null) {
     world = w; level = i; save.cur = [w, i]; persist();
     g = createGame(w, i, fromCp);
     if (keep) { g.time = keep.time; g.coinsTaken = keep.coinsTaken; g.coinsGot = keep.coinsGot; } else deaths = 0;
     if (!keep) tut = w === 0 && i === 0 && !save.tutorialDone ? { stage: 0, steps: 0, t: 0 } : null;
     const h = hipPos(g); cam.x = h.x + 1; cam.y = h.y - 1; cam.zoom = 1;
-    particles = []; input.hold = [false, false]; input.back = [false, false];
+    particles = []; aim.on = false; pendingCmd = null;
     mode = 'play'; showScreen(null);
-    $('hud').classList.remove('hidden'); $('pads').classList.remove('hidden');
-    $('pads').classList.toggle('nopads', !save.pads);
+    $('hud').classList.remove('hidden'); $('legChip').classList.remove('hidden'); $('legChip').dataset.leg = g.active;
     $('hTitle').textContent = `${WORLDS[w].name} ${w + 1}-${i + 1}`;
     const cps = g.lv.checkpoints;
     [$('hCp1'), $('hCp2')].forEach((el, k) => { if (cps[k]) { el.style.display = ''; el.style.left = (cps[k][0] / g.lv.finish) * 100 + '%'; el.classList.toggle('on', g.checkpoint >= k); } else el.style.display = 'none'; });
@@ -58,65 +59,73 @@
   }
   // ---------- обучение на первом уровне ----------
   const TUT = [
-    { title: 'ПРАВАЯ НОГА', text: 'Держи <b>правую</b> половину экрана — правая ходуля упрётся в землю, толкнёт тебя и пойдёт вперёд. Отпусти — она встанет.', pad: 1 },
-    { title: 'ЛЕВАЯ НОГА', text: 'Теперь держи <b>левую</b> половину. Шагай по очереди: правая, левая.', pad: 0 },
-    { title: 'ПЕРЕНЕСИ ВЕС', text: 'Задняя нога сначала упирается и толкает тело. Пронести её вперёд можно, когда тело встанет над опорой.', pad: -1 },
-    { title: 'НЕ НАКЛОНЯЙСЯ СЛИШКОМ СИЛЬНО', text: 'Долго держишь ногу — тело наклоняется. Отпускай вовремя, и нога встанет сама.', pad: -1 },
-    { title: 'ОТЛИЧНО!', text: 'Собирай монеты и дойди до финиша. Флажки по пути — контрольные точки.', pad: -1 },
+    { title: 'ПРОВЕДИ ПАЛЬЦЕМ ВПРАВО', text: 'Коснись экрана в любом месте и веди палец вправо. На земле появится метка — туда встанет нога. Отпусти — шаг.' },
+    { title: 'ТЕПЕРЬ ДРУГАЯ НОГА', text: 'Нога меняется сама после каждого шага — светится та, что пойдёт следующей. Снова свайп вправо.' },
+    { title: 'ДЛИНА СВАЙПА = ДЛИНА ШАГА', text: 'Короткий свайп — маленький шаг, длинный — большой. Метка показывает, куда встанет нога.' },
+    { title: 'НЕ ШАГАЙ СЛИШКОМ ШИРОКО', text: 'Если ноги окажутся слишком далеко друг от друга — они разъедутся. И не ставь ногу на самый край.' },
+    { title: 'ВЕДИ ЧУТЬ ВВЕРХ', text: 'Свайп вправо-вверх поднимает ногу выше — так перешагивают брёвна и ступеньки.' },
+    { title: 'ОТЛИЧНО!', text: 'Собирай монеты и дойди до финиша. Флажки по пути — контрольные точки.' },
   ];
   function tutorial(stage) {
     if (!tut) return;
     tut.stage = stage; tut.t = 0;
     const s = TUT[stage];
-    if (!s) { hint(''); tut = null; document.querySelectorAll('.pad').forEach((p) => p.classList.remove('teach')); return; }
+    if (!s) { hint(''); tut = null; return; }
     hint(`<div class="tut-title">${s.title}</div>${s.text}`);
-    const pads = [$('padL'), $('padR')]; if (save.swap) pads.reverse();
-    pads.forEach((p, k) => p.classList.toggle('teach', k === s.pad));
   }
   function hint(html) { const el = $('hint'); if (html) { el.innerHTML = html; el.classList.remove('hidden'); } else el.classList.add('hidden'); }
   function banner(text) { const el = $('banner'); el.textContent = text; el.classList.remove('hidden'); el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; clearTimeout(banner._t); banner._t = setTimeout(() => el.classList.add('hidden'), 1300); }
   function toast(text) { const el = $('toast'); el.textContent = text; el.classList.remove('hidden'); el.style.opacity = 1; clearTimeout(toast._t); toast._t = setTimeout(() => { el.style.opacity = 0; setTimeout(() => el.classList.add('hidden'), 400); }, 1800); }
 
   // ================= УПРАВЛЕНИЕ =================
-  // касания: левая половина — левая нога, правая — правая; палец вниз — нога назад
-  const touches = new Map();
-  function sideOf(x) { let s = x < W / 2 ? 0 : 1; if (save.swap) s = 1 - s; return s; }
-  function recomputeInput() {
-    const h = [false, false], b = [false, false];
-    for (const t of touches.values()) { h[t.side] = true; if (t.dy > 40) b[t.side] = true; }
-    for (const k of [0, 1]) if (keys[k]) { h[k] = true; if (keys.back) b[k] = true; }
-    input.hold = h; input.back = b;
-    $('padL').classList.toggle('on', h[save.swap ? 1 : 0]); $('padR').classList.toggle('on', h[save.swap ? 0 : 1]);
+  // Свайп в любом месте экрана: вправо — шаг вперёд, влево — назад, длина свайпа — длина шага,
+  // вверх — нога поднимается выше (перешагнуть препятствие). Отпустил палец — нога летит к метке.
+  function swipeScale() { return Math.max(180, Math.min(W, H) * 0.62); }
+  function updateAim() {
+    const s = swipeScale();
+    aim.dist = Math.sign(aim.dx) * Math.min(CFG.maxStep, (Math.abs(aim.dx) / s) * 3.2);
+    aim.up = Math.max(0, Math.min(1, -aim.dy / (s * 0.55)));
   }
-  const keys = { 0: false, 1: false, back: false };
   window.addEventListener('pointerdown', (e) => {
-    if (mode !== 'play' || e.target.closest('button, .modal, .screen, input, details')) return;
+    if (mode !== 'play' || aim.on || e.target.closest('button, .modal, .screen, input, details')) return;
     e.preventDefault(); Snd.unlock();
-    touches.set(e.pointerId, { side: sideOf(e.clientX), y0: e.clientY, dy: 0 }); recomputeInput(); if (!tut) hint('');
+    Object.assign(aim, { on: true, id: e.pointerId, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, dist: 0, up: 0, t0: performance.now() });
   });
-  window.addEventListener('pointermove', (e) => { const t = touches.get(e.pointerId); if (t) { t.dy = e.clientY - t.y0; recomputeInput(); } });
-  const lift = (e) => { if (touches.delete(e.pointerId)) recomputeInput(); };
-  window.addEventListener('pointerup', lift); window.addEventListener('pointercancel', lift);
-  window.addEventListener('blur', () => { touches.clear(); keys[0] = keys[1] = false; recomputeInput(); });
+  window.addEventListener('pointermove', (e) => { if (aim.on && e.pointerId === aim.id) { aim.dx = e.clientX - aim.x0; aim.dy = e.clientY - aim.y0; updateAim(); } });
+  const release = (e) => {
+    if (!aim.on || (e && e.pointerId !== aim.id)) return;
+    aim.on = false;
+    if (mode === 'play' && (Math.abs(aim.dist) >= 0.15 || aim.up >= 0.15)) { pendingCmd = { dist: aim.dist, up: aim.up }; if (!tut) hint(''); }
+  };
+  window.addEventListener('pointerup', release); window.addEventListener('pointercancel', release);
+  window.addEventListener('blur', () => { aim.on = false; });
   document.addEventListener('touchstart', (e) => { if (!e.target.closest('button, .modal, .screen, input, details, summary')) e.preventDefault(); }, { passive: false });
   document.addEventListener('contextmenu', (e) => e.preventDefault());
-  const keyMap = { KeyA: 0, ArrowLeft: 0, KeyD: 1, ArrowRight: 1 };
+  // клавиатура: держи → (или D) — шаг растёт; ↑ — выше; отпусти — шаг. ← (A) — шаг назад
+  const kb = { dir: 0, t0: 0, up: false };
   window.addEventListener('keydown', (e) => {
-    if (e.code in keyMap) { keys[keyMap[e.code]] = true; recomputeInput(); if (!tut) hint(''); e.preventDefault(); Snd.unlock(); }
-    if (e.code === 'KeyS' || e.code === 'ArrowDown') { keys.back = true; recomputeInput(); }
+    if (e.repeat) return;
+    const d = e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'Space' ? 1 : e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : 0;
+    if (d && mode === 'play' && !kb.dir) { kb.dir = d; kb.t0 = performance.now(); e.preventDefault(); Snd.unlock(); Object.assign(aim, { on: true, id: 'kb', dx: 0, dy: 0 }); }
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') kb.up = true;
     if (e.code === 'Escape' && mode === 'play') pause();
     if (e.code === 'KeyR' && (mode === 'play' || mode === 'lose')) startLevel(world, level);
   });
   window.addEventListener('keyup', (e) => {
-    if (e.code in keyMap) { keys[keyMap[e.code]] = false; recomputeInput(); }
-    if (e.code === 'KeyS' || e.code === 'ArrowDown') { keys.back = false; recomputeInput(); }
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') kb.up = false;
+    const d = e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'Space' ? 1 : e.code === 'ArrowLeft' || e.code === 'KeyA' ? -1 : 0;
+    if (d && d === kb.dir) { kb.dir = 0; release({ pointerId: 'kb' }); }
   });
-
+  function keyboardAim() {
+    if (!kb.dir || !aim.on) return;
+    const t = (performance.now() - kb.t0) / 1000; // шаг растёт, пока держишь клавишу
+    aim.dist = kb.dir * Math.min(CFG.maxStep, 0.3 + t * 2.2); aim.up = kb.up ? 0.7 : 0;
+  }
   // ================= ЭКРАНЫ =================
   const screens = ['sMenu', 'sWorlds', 'sChars', 'sSettings'];
   function showScreen(id) {
     screens.forEach((s) => $(s).classList.toggle('hidden', s !== id));
-    if (id) { $('hud').classList.add('hidden'); $('pads').classList.add('hidden'); hint(''); }
+    if (id) { $('hud').classList.add('hidden'); $('legChip').classList.add('hidden'); hint(''); }
     document.querySelectorAll('.tCoins').forEach((el) => (el.textContent = save.coins));
   }
   function toMenu() {
@@ -197,7 +206,7 @@
   // ---------- настройки ----------
   const PHYS_LABELS = { gravity: 'Гравитация', walkingSpeed: 'Скорость ходьбы', legLength: 'Длина ходуль', legMass: 'Вес ноги', bodyMass: 'Вес тела', friction: 'Сцепление с землёй', movementForce: 'Сила шага', balanceStrength: 'Сила равновесия', legSpeed: 'Скорость ноги', stepDistance: 'Длина шага (угол)', fallThreshold: 'Порог падения', legSag: 'Как быстро опускается нога', damping: 'Затухание' };
   function renderSettings() {
-    $('oSfx').value = save.sfx; $('oMusic').value = save.music; $('oSound').checked = save.sound; $('oMusicOn').checked = save.musicOn; $('oSwap').checked = save.swap; $('oPads').checked = save.pads; $('oShake').checked = save.shake; $('oVibe').checked = save.vibe;
+    $('oSfx').value = save.sfx; $('oMusic').value = save.music; $('oSound').checked = save.sound; $('oMusicOn').checked = save.musicOn; $('oShake').checked = save.shake; $('oVibe').checked = save.vibe;
     const rows = $('physRows'); rows.innerHTML = '';
     for (const [k, label] of Object.entries(PHYS_LABELS)) {
       const base = CFG_DEFAULT[k], l = document.createElement('label');
@@ -212,8 +221,7 @@
   $('oSfx').oninput = (e) => { save.sfx = +e.target.value; applyVolume(); persist(); };
   $('oSfx').onchange = () => Snd.sfx.coin();
   $('oMusic').oninput = (e) => { save.music = +e.target.value; applyVolume(); persist(); };
-  $('oSwap').onchange = (e) => { save.swap = e.target.checked; persist(); };
-  $('oPads').onchange = (e) => { save.pads = e.target.checked; persist(); };
+
   $('oShake').onchange = (e) => { save.shake = e.target.checked; persist(); };
   $('oVibe').onchange = (e) => { save.vibe = e.target.checked; persist(); buzz(30); };
   $('oPhysReset').onclick = () => { Object.assign(CFG, CFG_DEFAULT); save.phys = {}; persist(); renderSettings(); toast('Физика как была'); };
@@ -224,7 +232,7 @@
   // ---------- пауза, победа, поражение ----------
   function pause() { if (mode !== 'play') return; mode = 'pause'; $('mPause').classList.remove('hidden'); $('pCheckpoint').classList.toggle('hidden', g.checkpoint < 0); }
   $('bPause').onclick = (e) => { e.stopPropagation(); Snd.sfx.click(); pause(); };
-  $('pResume').onclick = () => { mode = 'play'; $('mPause').classList.add('hidden'); touches.clear(); recomputeInput(); };
+  $('pResume').onclick = () => { mode = 'play'; $('mPause').classList.add('hidden'); aim.on = false; };
   $('pRestart').onclick = () => { $('mPause').classList.add('hidden'); startLevel(world, level); };
   $('pCheckpoint').onclick = () => { $('mPause').classList.add('hidden'); startLevel(world, level, g.checkpoint); };
   $('pMenu').onclick = () => toMenu();
@@ -254,7 +262,7 @@
       const best = save.done[lvKey(world, level)];
       $('wText').innerHTML = `<div class="stats"><div><small>Время</small><b>${g.time.toFixed(1)} с</b>${record ? '<i>рекорд!</i>' : `<i>лучшее ${best.time.toFixed(1)} с</i>`}</div><div><small>Падения</small><b>${deaths}</b>${deaths ? '' : '<i>ни одного!</i>'}</div><div><small>Монеты</small><b>${got}/${total}</b><i>+${reward} награда</i></div></div>${nowOpenWorld ? `<b class="newworld">Открыт новый мир: ${WORLDS[world + 1].name}!</b>` : ''}`;
       $('wNext').textContent = world === WORLDS.length - 1 && level === LEVELS_PER_WORLD - 1 ? 'В меню' : 'Дальше ▶';
-      $('mWin').classList.remove('hidden'); $('hud').classList.add('hidden'); $('pads').classList.add('hidden');
+      $('mWin').classList.remove('hidden'); $('hud').classList.add('hidden'); $('legChip').classList.add('hidden');
       if (nowOpenWorld) Snd.sfx.unlock();
     }, 1600);
   }
@@ -269,7 +277,7 @@
   }
 
   // вибрация (работает на Android; айфон в браузере её не поддерживает)
-  const buzz = (p) => { if (save.vibe && navigator.vibrate) try { navigator.vibrate(p); } catch (e) {} };
+  const buzz = (p) => { if (save.vibe && navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) try { navigator.vibrate(p); } catch (e) {} };
 
   // ================= ЧАСТИЦЫ =================
   function burst(x, y, n, colors, spd = 1, up = 3, size = 0.08) {
@@ -299,35 +307,34 @@
     while (acc >= 1 / 60) {
       acc -= 1 / 60;
       if (!g) break;
-      let hold = [false, false], back = [false, false];
-      if (mode === 'play') { hold = input.hold; back = input.back; if (DEMO) hold = Phys.bot(g); }
-      else if (mode === 'menu') hold = Phys.bot(g);
       if (mode === 'pause') continue;
-      step(g, 1 / 60, hold, back);
+      let cmd = null;
+      if (mode === 'play') { cmd = pendingCmd; pendingCmd = null; if (DEMO) cmd = Phys.bot(g); }
+      else if (mode === 'menu') cmd = Phys.bot(g);
+      step(g, 1 / 60, cmd);
       for (const e of g.events) {
         if (mode !== 'play' && mode !== 'win' && mode !== 'lose') continue;
-        if (e === 'scrape') Snd.sfx.scrape();
-        if (e === 'bump') Snd.sfx.bump();
-        if (e === 'touch') Snd.sfx.touch();
-        if (e === 'land' && tut) { tut.steps++; if (tut.stage === 0 && g.s === 1) tutorial(1); else if (tut.stage === 1 && g.s === 0) tutorial(2); else if (tut.stage === 2 && tut.steps >= 5) tutorial(3); else if (tut.stage === 3 && tut.steps >= 8) tutorial(4); else if (tut.stage === 4 && tut.steps >= 10) tutorial(5); }
-        if (e === 'land') { buzz(12); Snd.sfx.step(); const f = g.P; burst(f.x, f.y + 0.05, 6, ['rgba(255,255,255,.8)', 'rgba(200,180,150,.8)'], 0.5, 1.5, 0.05); }
+        if (e === 'bump' || e === 'slip') Snd.sfx.bump();
+        if (e === 'land' && tut) { tut.steps++; const st = [1, 2, 4, 6, 8]; for (let k = 0; k < st.length; k++) if (tut.stage === k && tut.steps >= st[k]) { tutorial(k + 1); break; } }
+        if (e === 'land') { buzz(12); Snd.sfx.step(); const f = g.F[1 - g.active]; burst(f.x, f.y + 0.05, 6, ['rgba(255,255,255,.8)', 'rgba(200,180,150,.8)'], 0.5, 1.5, 0.05); $('legChip').dataset.leg = g.active; }
         if (e === 'lift') Snd.sfx.lift();
-        if (e === 'bounce') { Snd.sfx.bounce(); burst(g.P.x, g.P.y, 12, ['#ff6fb5', '#fff'], 1, 3); }
+        if (e === 'bounce') { Snd.sfx.bounce(); const f = g.F[1 - g.active]; burst(f.x, f.y, 12, ['#ff6fb5', '#fff'], 1, 3); }
         if (e === 'coin') { Snd.sfx.coin(); save.coins++; persist(); $('hCoins').textContent = save.coins; const h = hipPos(g); burst(h.x, h.y + 1.5, 10, ['#ffcf3f', '#fff3a0'], 0.8, 2); floaters.push({ x: h.x, y: h.y + 2, t: 0, text: '+1' }); $('hCoinChip').classList.remove('bump'); void $('hCoinChip').offsetWidth; $('hCoinChip').classList.add('bump'); }
         if (e === 'checkpoint') { buzz([15, 40, 15]); Snd.sfx.checkpoint(); banner('Контрольная точка!'); const cp = g.lv.checkpoints[g.checkpoint]; burst(cp[0], cp[1] + 2.3, 20, ['#3fbf5a', '#fff', '#ffcf3f'], 1.2, 3); [$('hCp1'), $('hCp2')].forEach((el, k) => el.classList.toggle('on', g.checkpoint >= k)); }
-        if (e === 'fall') { buzz([40, 50, 90]); if (g.splash) Snd.sfx.splash(); else Snd.sfx.fall(); if (save.shake) shake = 0.45; slowmo = 0.5; onLose(); if (g.splash) burst(g.P.x, g.P.y, 30, ['#9fdcff', '#fff'], 1.4, 4); }
+        if (e === 'fall') { buzz([40, 50, 90]); if (g.splash) Snd.sfx.splash(); else Snd.sfx.fall(); if (save.shake) shake = 0.45; slowmo = 0.5; onLose(); if (g.splash && g.P) burst(g.P.x, g.P.y, 30, ['#9fdcff', '#fff'], 1.4, 4); }
         if (e === 'win') { buzz([20, 60, 20, 60, 40]); Snd.sfx.win(); const h = hipPos(g); burst(h.x, h.y + 2, 90, ['#ffcf3f', '#e5483a', '#3fbf5a', '#3a8bff', '#fff', '#ff6fb5'], 2.2, 5); onWin(); }
       }
       if (mode === 'menu' && g.state !== 'play' && g.state !== 'ready' && (g.deadT > 2 || g.winT > 2)) g = createGame(save.cur[0], save.cur[1]);
     }
     if (!g) { requestAnimationFrame(frame); return; }
     // камера: плавно за бедром, с запасом вперёд, отдаляется на скорости
-    const h = hipPos(g), speed = Math.abs(g.w);
+    keyboardAim();
+    const h = hipPos(g), speed = Math.abs(g.hv ? g.hv.x : 0) / 2.5;
     const k = 1 - Math.pow(0.03, dt);
     const zoomT = 1 + Math.min(0.22, speed * 0.18);
     cam.zoom += (zoomT - cam.zoom) * (1 - Math.pow(0.2, dt));
     PPM = Math.min(W / 10.5, H / 13) / cam.zoom;
-    cam.x += (h.x + 1.6 + g.w * 0.8 - cam.x) * k;
+    cam.x += (h.x + 1.8 + (g.hv ? g.hv.x : 0) * 0.3 - cam.x) * k;
     const groundHere = surface(g.lv, h.x, g.t, h.y).y;
     cam.y += ((groundHere > -1e8 ? Math.max(h.y - 0.6, groundHere + 1.6) : h.y - 0.6) - cam.y) * k * 0.6;
     if (mode === 'play') $('hBar').style.width = Math.max(0, Math.min(100, (h.x / g.lv.finish) * 100)) + '%';
@@ -340,44 +347,35 @@
     Art.drawFlags(ctx, V, g, t);
     Art.drawCoins(ctx, V, g, t);
     Art.drawHazards(ctx, V, g, t);
-    // персонаж
-    const Ls = [0, 1].map((i) => {
-      if (i === g.s) return g.Ls;
-      const a = legAngle(g, i), c = Math.cos(a), f = footPos(g, i), gy = surface(g.lv, f.x, g.t, h.y - 0.3).y;
-      return c > 0.05 && f.y < gy && gy > -1e8 ? Math.max(0.4, (h.y - gy) / c) : g.L; // нога не уходит под землю
-    });
-    const mood = g.state === 'dead' ? 'dead' : g.state === 'win' ? 'win' : Math.abs(g.th) > 0.65 ? 'scared' : 'idle';
+    // персонаж: ходули — от бедра до стопы
+    const Ls = [0, 1].map((i) => { const f = footPos(g, i); return Math.max(0.5, Math.hypot(f.x - h.x, f.y - h.y)); });
+    const mood = g.state === 'dead' ? 'dead' : g.state === 'win' ? 'win' : Math.abs(g.ta) > 0.45 ? 'scared' : 'idle';
     const playing = mode === 'play' || mode === 'lose';
-    // опорная нога — зелёное кольцо под стопой
-    if (playing && g.state === 'play') {
-      const sx0 = V.sx(g.P.x), sy0 = V.sy(g.P.y);
-      ctx.strokeStyle = 'rgba(80,255,140,.9)'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.ellipse(sx0, sy0, PPM * 0.32, PPM * 0.1, 0, 0, 7); ctx.stroke();
-      ctx.fillStyle = 'rgba(80,255,140,.18)'; ctx.fill();
+    const act = g.active, actCol = act === 0 ? '#4aa3ff' : '#ff8a2a';
+    // подсказка шага: дуга и метка, куда встанет нога
+    if (playing && g.state !== 'dead' && aim.on && !g.swing && (Math.abs(aim.dist) > 0.05 || aim.up > 0.05)) {
+      const pv = Phys.preview(g, aim.dist, aim.up);
+      ctx.setLineDash([6, 7]); ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 3;
+      ctx.beginPath(); pv.pts.forEach((p, i) => (i ? ctx.lineTo(V.sx(p.x), V.sy(p.y)) : ctx.moveTo(V.sx(p.x), V.sy(p.y)))); ctx.stroke(); ctx.setLineDash([]);
+      const mx = V.sx(pv.tx), my = V.sy(pv.ok ? pv.ty : g.F[1 - act].y);
+      ctx.strokeStyle = actCol; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(mx, my, PPM * 0.3, PPM * 0.1, 0, 0, 7); ctx.stroke();
+      ctx.fillStyle = actCol + '55'; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(mx, my - PPM * 0.15); ctx.lineTo(mx - PPM * 0.15, my - PPM * 0.45); ctx.lineTo(mx + PPM * 0.15, my - PPM * 0.45); ctx.fillStyle = actCol; ctx.fill();
+      ctx.font = `800 ${Math.round(PPM * 0.32)}px Rubik,sans-serif`; ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 3;
+      const lbl = Math.abs(aim.dist).toFixed(1) + ' м'; ctx.strokeText(lbl, mx - PPM * 0.35, my - PPM * 0.55); ctx.fillText(lbl, mx - PPM * 0.35, my - PPM * 0.55);
     }
-    Art.drawCharacter(ctx, charOf(), stiltOf(), { hx: V.sx(h.x), hy: V.sy(h.y), ta: g.ta, a: [legAngle(g, 0), legAngle(g, 1)], L: Ls, t, mood, legCol: ['#4aa3ff', '#ff8a2a'], held: playing ? input.hold : [false, false], stance: g.s, speed: g.w }, PPM);
-    // нога в движении — стрелка, куда она идёт
+    // опорная нога — зелёное кольцо
     if (playing && g.state === 'play') {
-      const sw = 1 - g.s, lg = g.legs[sw];
-      if (lg.held) {
-        const f = footPos(g, sw), x = V.sx(f.x), y = V.sy(f.y), a = legAngle(g, sw), dir = lg.back ? -1 : 1;
-        const col = sw === 0 ? '#4aa3ff' : '#ff8a2a', r = PPM * 0.55;
-        ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 4; ctx.lineCap = 'round';
-        const hx = V.sx(h.x), hy = V.sy(h.y), R = Math.hypot(x - hx, y - hy);
-        const a0 = Math.atan2(y - hy, x - hx), a1 = a0 - dir * 0.35;
-        ctx.beginPath(); ctx.arc(hx, hy, R, a0, a1, dir > 0); ctx.stroke();
-        const ex = hx + Math.cos(a1) * R, ey = hy + Math.sin(a1) * R, tg = a1 - dir * Math.PI / 2;
-        ctx.beginPath(); ctx.moveTo(ex + Math.cos(tg) * 12, ey + Math.sin(tg) * 12); ctx.lineTo(ex + Math.cos(tg + 2.5) * 10, ey + Math.sin(tg + 2.5) * 10); ctx.lineTo(ex + Math.cos(tg - 2.5) * 10, ey + Math.sin(tg - 2.5) * 10); ctx.fill();
-        if (lg.blocked) { ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.font = '800 13px Rubik,sans-serif'; ctx.fillText('упор', x - 16, y + 22); }
-        void r; void a;
-      }
+      const sf = g.F[1 - act];
+      ctx.strokeStyle = 'rgba(80,255,140,.85)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(V.sx(sf.x), V.sy(sf.y), PPM * 0.3, PPM * 0.09, 0, 0, 7); ctx.stroke();
     }
-    // всплывающие «+1»
+    const glow = [false, false]; if (playing && g.state === 'play') glow[act] = true;
+    Art.drawCharacter(ctx, charOf(), stiltOf(), { hx: V.sx(h.x), hy: V.sy(h.y), ta: g.ta, a: [legAngle(g, 0), legAngle(g, 1)], L: Ls, t, mood, legCol: ['#4aa3ff', '#ff8a2a'], held: glow, speed: (g.hv ? g.hv.x : 0) / 2.5 }, PPM);    // всплывающие «+1»
     floaters = floaters.filter((fl) => (fl.t += dt) < 0.9);
     for (const fl of floaters) { ctx.globalAlpha = 1 - fl.t / 0.9; ctx.fillStyle = '#ffcf3f'; ctx.strokeStyle = '#6b3a00'; ctx.lineWidth = 3; ctx.font = `900 ${Math.round(PPM * 0.45)}px Rubik,sans-serif`; const x = V.sx(fl.x), y = V.sy(fl.y + fl.t * 1.2); ctx.strokeText(fl.text, x, y); ctx.fillText(fl.text, x, y); }
     ctx.globalAlpha = 1;
     // обучение: сильный наклон
-    if (tut && tut.stage >= 2 && tut.stage < 3 && Math.abs(g.th) > 0.55) tutorial(3);
     if (g.state === 'dead' && g.deadT > 0.5) { const hd = headPos(g); Art.drawDizzy(ctx, V.sx(hd.x), V.sy(hd.y + 0.6), PPM, t); }
     drawParticles(dt);
     requestAnimationFrame(frame);

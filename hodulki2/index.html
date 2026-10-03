@@ -18,11 +18,8 @@
 <body>
 <canvas id="cv"></canvas>
 
-<!-- зоны управления -->
-<div id="pads" class="hidden">
-  <div class="pad" id="padL"><span>Л</span><small>левая нога</small></div>
-  <div class="pad" id="padR"><span>П</span><small>правая нога</small></div>
-</div>
+<!-- маленький значок: какая нога сейчас шагнёт -->
+<div id="legChip" class="legchip hidden" data-leg="1"><i></i><span class="l">Л</span><span class="r">П</span></div>
 
 <!-- игровая панель -->
 <div id="hud" class="hidden">
@@ -69,11 +66,9 @@
     <label>Громкость звуков <input type="range" min="0" max="1" step="0.05" id="oSfx"></label>
     <label>Музыка включена <input type="checkbox" id="oMusicOn"></label>
     <label>Громкость музыки <input type="range" min="0" max="1" step="0.05" id="oMusic"></label>
-    <label>Поменять зоны местами (левая ↔ правая) <input type="checkbox" id="oSwap"></label>
-    <label>Показывать кнопки ног <input type="checkbox" id="oPads"></label>
     <label>Тряска экрана <input type="checkbox" id="oShake"></label>
     <label>Вибрация (Android) <input type="checkbox" id="oVibe"></label>
-    <div class="help"><b>Управление.</b> Левая половина экрана — левая нога, правая — правая. Держишь — нога идёт вперёд, отпускаешь — опускается и встаёт. Нажми зону опорной ноги — вес перейдёт на другую, а эта поднимется. Веди палец вниз — нога пойдёт назад. На компьютере: <b>A / ←</b> — левая, <b>D / →</b> — правая, с <b>S</b> — назад.</div>
+    <div class="help"><b>Управление.</b> Проведи пальцем в любом месте экрана: <b>вправо</b> — шаг вперёд, <b>влево</b> — назад. Чем длиннее свайп, тем длиннее шаг; на земле видна метка, куда встанет нога. <b>Вверх</b> — нога поднимется выше и перешагнёт препятствие. Отпусти палец — шаг. Нога меняется сама: светится та, что пойдёт следующей. На компьютере: держи <b>→</b> (или D, пробел) — шаг растёт, отпусти — шагнёт; <b>↑</b> — выше; <b>←</b> — назад.</div>
     <details><summary>Физика (для экспериментов)</summary><div id="physRows"></div><button class="act small" id="oPhysReset">Вернуть как было</button></details>
     <button class="act danger" id="oReset">Сбросить весь прогресс</button>
   </div>
