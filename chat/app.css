@@ -247,3 +247,4 @@ html[data-font="s"] .m { font-size: 14.5px; } html[data-font="l"] .m { font-size
 /* ---------- звонок: своё видео в углу сразу, чужое — во весь экран, когда придёт ---------- */
 .call.selfcam video#localVideo { display: block !important; }
 .call #callFlip { display: none; } .call.selfcam #callFlip { display: grid; }
+.center > * { flex-shrink: 0; }
