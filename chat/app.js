@@ -1,11 +1,13 @@
 // KAMOX Chat — мессенджер (Supabase: база, файлы, мгновенная доставка; звонки — WebRTC; уведомления — Web Push)
 'use strict';
-const SB_URL = 'https://zqhhczwewvvgeavpulas.supabase.co';
+// Supabase в России заблокирован — ходим через посредника на сервере бота (Render открывается и с VPN, и без)
+const SB_URL = 'https://vtoroy-mozg-bot.onrender.com/sb';
 const SB_KEY = 'sb_publishable_s-wUfxpZmZKf0kEqoTMclQ_uPyuabsp';
 const VAPID = 'BBD19_NqHMSkr_P_r-IV1ohfzI9UM0n614PaCsiUvaTPBvnOimS190hnDdXKTZS6aQZtvR8g5SWnVV7pnyIcJCk';
 const MAIL = (u) => `${u}@kamox-chat.app`; // ник превращается в «почту» только для входа, писем никто не получает
-const sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true } });
-const ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }];
+const sb = supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: 'sb-zqhhczwewvvgeavpulas-auth-token' } });
+// несколько серверов STUN: часть из них в России может не открываться
+const ICE = [{ urls: ['stun:stun.sipnet.ru:3478', 'stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478', 'stun:global.stun.twilio.com:3478'] }];
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -50,7 +52,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '1.3';
+const APP_VER = '1.4';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
