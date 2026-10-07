@@ -315,7 +315,12 @@ function addMsg(m) {
   const list = state.msgs.get(m.chat_id);
   if (list && !list.some((x) => x.id === m.id)) { list.push(m); if (state.open === m.chat_id) renderMsgs(m.sender_id === state.me.id); }
   const c = state.chats.get(m.chat_id);
-  if (c) { if (!c.last || new Date(m.created_at) >= new Date(c.last.created_at)) c.last = m; if (state.open === m.chat_id && !document.hidden) markRead(c); else if (m.sender_id !== state.me.id) c.unread++; renderChats(); }
+  if (c) {
+    const isNew = !c.last || m.id > c.last.id; // сообщение уже могло попасть в список при загрузке — тогда не считаем второй раз
+    if (isNew) c.last = m;
+    if (state.open === m.chat_id && !document.hidden) markRead(c); else if (isNew && m.sender_id !== state.me.id) c.unread++;
+    renderChats();
+  }
 }
 
 // файлы и фото
