@@ -166,6 +166,7 @@ async function loadChatsNow() {
     .eq('user_id', state.me.id);
   if (error) { toast('Не удалось загрузить чаты'); return; }
   state.chats.clear();
+  if (!state.listShown) { state.listShown = true; $('chatList').classList.add('animList'); setTimeout(() => $('chatList').classList.remove('animList'), 900); }
   for (const row of data) {
     const c = row.chats; if (!c) continue;
     const members = c.chat_members.map((m) => m.profiles).filter(Boolean);
@@ -309,12 +310,12 @@ function msgHtml(m, c) {
   const who = c?.is_group && !mine ? `<div class="who">${esc(p?.display_name || '?')}</div>` : '';
   const time = `<span class="time">${hhmm(m.created_at)}</span>`;
   let inner;
-  if (m.kind === 'image') return `<div class="m media ${mine ? 'me' : ''}">${who}<img class="ph" data-img="${esc(m.file_path)}" alt="">${time}</div>`;
+  if (m.kind === 'image') return `<div class="m media ${mine ? 'me' : ''} ${m.id === state.animId ? 'new' : ''}">${who}<img class="ph" data-img="${esc(m.file_path)}" alt="">${time}</div>`;
   if (m.kind === 'file') inner = `<a class="file" href="#" data-file="${esc(m.file_path)}" data-name="${esc(m.file_name)}"><span class="fi">${ic('file')}</span><span><b>${esc(m.file_name)}</b><br><span class="small" style="opacity:.75">${fmtSize(m.file_size || 0)}</span></span></a>`;
   else if (m.kind === 'voice') inner = `<div class="voice" data-voice="${esc(m.file_path)}" data-dur="${m.duration || 0}"><button class="play">${ic('play')}</button><div class="bar">${waveBars(m.id)}</div><span class="dur">${fmtDur(m.duration || 0)}</span></div>`;
   else if (m.kind === 'call') inner = `${ic(/Пропущ|Отмен/.test(m.body || '') ? 'missed' : 'phone')}<span>${esc(m.body)}</span>`;
   else inner = esc(m.body);
-  return `<div class="m ${mine ? 'me' : ''} ${m.kind}">${who}${inner}${time}</div>`;
+  return `<div class="m ${mine ? 'me' : ''} ${m.kind} ${m.id === state.animId ? 'new' : ''}">${who}${inner}${time}</div>`;
 }
 
 const urlCache = new Map();
@@ -358,7 +359,8 @@ syncSendBtn();
 $('sendBtn').onclick = sendText;
 async function sendText() {
   const body = input.value.trim(); if (!body || !state.open) return;
-  input.value = ''; input.oninput(); input.focus();
+  const b = $('sendBtn'); b.classList.remove('fly'); void b.offsetWidth; b.classList.add('fly'); sfx.send(); navigator.vibrate?.(15);
+  input.value = ''; input.style.height = 'auto'; input.focus(); setTimeout(syncSendBtn, 420); // кнопка успевает «улететь»
   await insertMsg({ kind: 'text', body });
 }
 async function insertMsg(fields) {
@@ -369,7 +371,14 @@ async function insertMsg(fields) {
 }
 function addMsg(m) {
   const list = state.msgs.get(m.chat_id);
-  if (list && !list.some((x) => x.id === m.id)) { list.push(m); if (state.open === m.chat_id) renderMsgs(m.sender_id === state.me.id); }
+  if (list && !list.some((x) => x.id === m.id)) {
+    list.push(m);
+    if (state.open === m.chat_id) {
+      state.animId = m.id; renderMsgs(m.sender_id === state.me.id); state.animId = null; // анимация только у нового
+      if (m.sender_id !== state.me.id && m.kind !== 'system' && !document.hidden) sfx.receive();
+    }
+  }
+  if (state.open !== m.chat_id && m.sender_id !== state.me.id && m.kind !== 'system' && !document.hidden) sfx.receive();
   const c = state.chats.get(m.chat_id);
   if (c) {
     const isNew = !c.last || m.id > c.last.id; // уже могло попасть в список при загрузке — не считаем второй раз
@@ -392,7 +401,7 @@ $('fileInput').onchange = async () => {
     const path = await upload(blob, ext, blob.type || f.type);
     await insertMsg(isImg ? { kind: 'image', file_path: path, mime: blob.type, file_size: blob.size }
       : { kind: 'file', file_path: path, file_name: f.name.slice(0, 120), file_size: f.size, mime: f.type });
-    $('toast').classList.add('hidden');
+    $('toast').classList.add('hidden'); sfx.send();
   } catch (e) { toast('Ошибка загрузки: ' + (e.message || e)); }
 };
 async function upload(blob, ext, type) {
@@ -426,12 +435,12 @@ $('micBtn').onclick = async () => {
     rec = { mr, stream, chunks: [], t0: Date.now(), send: false };
     mr.ondataavailable = (e) => e.data.size && rec.chunks.push(e.data);
     mr.onstop = finishVoice;
-    mr.start(250);
+    mr.start(250); sfx.recStart(); navigator.vibrate?.(20);
     $('composer').classList.add('hidden'); $('recBar').classList.remove('hidden');
     rec.timer = setInterval(() => { $('recTime').textContent = fmtDur((Date.now() - rec.t0) / 1000); if (Date.now() - rec.t0 > 300000) stopVoice(true); }, 250);
   } catch { toast('Нет доступа к микрофону'); }
 };
-function stopVoice(send) { if (!rec) return; rec.send = send; clearInterval(rec.timer); rec.mr.stop(); rec.stream.getTracks().forEach((t) => t.stop()); $('recBar').classList.add('hidden'); $('composer').classList.remove('hidden'); $('recTime').textContent = '0:00'; }
+function stopVoice(send) { if (!rec) return; rec.send = send; send ? sfx.send() : sfx.recStop(); clearInterval(rec.timer); rec.mr.stop(); rec.stream.getTracks().forEach((t) => t.stop()); $('recBar').classList.add('hidden'); $('composer').classList.remove('hidden'); $('recTime').textContent = '0:00'; }
 $('recCancel').onclick = () => stopVoice(false);
 $('recSend').onclick = () => stopVoice(true);
 async function finishVoice() {
@@ -458,18 +467,44 @@ function subscribe() {
     .subscribe();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { heartbeat(); const c = state.chats.get(state.open); if (c) markRead(c); } });
 }
+// ---------- звуки (синтезируются на лету, без файлов) ----------
 let audioCtx;
+function ac() { audioCtx ??= new AudioContext(); if (audioCtx.state === 'suspended') audioCtx.resume(); return audioCtx; }
 function beep(f = 880, len = 0.12, vol = 0.12) {
-  try { audioCtx ??= new AudioContext(); const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-    o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(vol, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + len);
-    o.connect(g).connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + len); } catch {}
+  try { const a = ac(), o = a.createOscillator(), g = a.createGain();
+    o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(vol, a.currentTime); g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + len);
+    o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime + len); } catch {}
 }
+const sfx = {
+  // «вжух» при отправке: шум через фильтр, частота быстро уходит вверх
+  send() {
+    try {
+      const a = ac(), t = a.currentTime, len = 0.22;
+      const buf = a.createBuffer(1, a.sampleRate * len, a.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+      const src = a.createBufferSource(); src.buffer = buf;
+      const f = a.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.4;
+      f.frequency.setValueAtTime(500, t); f.frequency.exponentialRampToValueAtTime(4200, t + len);
+      const g = a.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22, t + 0.04); g.gain.exponentialRampToValueAtTime(0.001, t + len);
+      src.connect(f).connect(g).connect(a.destination); src.start(t); src.stop(t + len);
+      const o = a.createOscillator(), og = a.createGain(); o.type = 'sine';
+      o.frequency.setValueAtTime(660, t + 0.05); o.frequency.exponentialRampToValueAtTime(1320, t + 0.14);
+      og.gain.setValueAtTime(0.0001, t + 0.05); og.gain.exponentialRampToValueAtTime(0.08, t + 0.08); og.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+      o.connect(og).connect(a.destination); o.start(t + 0.05); o.stop(t + 0.22);
+    } catch {}
+  },
+  // мягкий «дзынь» при входящем сообщении
+  receive() { beep(988, 0.1, 0.1); setTimeout(() => beep(1480, 0.16, 0.08), 80); },
+  // щелчок начала и конца записи голосового
+  recStart() { beep(740, 0.07, 0.1); setTimeout(() => beep(1110, 0.09, 0.1), 70); },
+  recStop() { beep(1110, 0.07, 0.08); setTimeout(() => beep(740, 0.09, 0.08), 70); },
+};
 // уведомление, пока приложение открыто (когда закрыто — их присылает сервер, см. push)
 function notifyLocal(m) {
   const c = state.chats.get(m.chat_id), p = state.profiles.get(m.sender_id);
   const title = c?.is_group ? `${c.title}: ${p?.display_name}` : p?.display_name || 'Новое сообщение';
   const text = previewParts(m)[1];
-  beep(1046, 0.09); setTimeout(() => beep(1318, 0.12), 90); navigator.vibrate?.(40);
+  navigator.vibrate?.(40);
   if (document.hidden) return; // свёрнутое приложение получит пуш от сервера
   if (state.open !== m.chat_id) toast(`${title}: ${text}`);
 }
