@@ -571,6 +571,9 @@ async function endCall(iRecord, text) {
 }
 
 // ---------- старт ----------
+// кнопка скачивания APK — только в браузере на Android (внутри приложения она не нужна)
+if (/android/i.test(navigator.userAgent) && !window.Capacitor) $('apkLink').classList.remove('hidden');
+if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !navigator.standalone) $('iosHint').classList.remove('hidden');
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.chat && state.chats.has(e.data.chat)) openChat(e.data.chat); });
 sb.auth.getSession().then(({ data }) => (data.session ? start() : show('sAuth', false)));
