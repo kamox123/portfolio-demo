@@ -52,7 +52,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '1.4';
+const APP_VER = '1.5';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -135,12 +135,25 @@ function setAuthMode(m) {
 document.querySelectorAll('.segBtn').forEach((t) => (t.onclick = () => setAuthMode(t.dataset.mode)));
 setAuthMode('login');
 
+// ник только латиницей: русские буквы сами превращаются в латинские прямо при вводе («илюшко» → «ilyushko»)
+const TR = { а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya' };
+function toNick(v) {
+  return v.toLowerCase().replace(/[а-яё]/g, (c) => TR[c] ?? '').replace(/[\s\-.]+/g, '_').replace(/[^a-z0-9_]/g, '').slice(0, 20);
+}
+$('aUser').addEventListener('input', () => {
+  const el = $('aUser'), v = toNick(el.value);
+  if (v !== el.value) { el.value = v; $('aErr').textContent = ''; }
+});
+// ошибка видна всегда: и под кнопкой, и всплывающей подсказкой сверху (под кнопкой её могло закрывать клавиатурой)
+function authErr(text) { $('aErr').textContent = text; toast(text, 3500); VIBRO([60, 40, 60]); }
+
 $('authForm').onsubmit = async (e) => {
   e.preventDefault();
-  const user = $('aUser').value.trim().toLowerCase(), pass = $('aPass').value, name = $('aName').value.trim();
-  $('aErr').textContent = '';
-  if (!/^[a-z0-9_]{3,20}$/.test(user)) { $('aErr').textContent = 'Ник: 3–20 символов, латинские буквы, цифры и _'; return; }
-  if (pass.length < 6) { $('aErr').textContent = 'Пароль минимум 6 символов'; return; }
+  const user = toNick($('aUser').value.trim()), pass = $('aPass').value, name = $('aName').value.trim();
+  $('aUser').value = user; $('aErr').textContent = '';
+  if (!/^[a-z0-9_]{3,20}$/.test(user)) return authErr('Ник: от 3 до 20 символов — латинские буквы, цифры и _');
+  if (pass.length < 6) return authErr('Пароль: минимум 6 символов');
+  $('aBtn').textContent = authMode === 'login' ? 'Входим…' : 'Создаём…';
   $('aBtn').disabled = true;
   try {
     if (authMode === 'register') {
@@ -152,11 +165,12 @@ $('authForm').onsubmit = async (e) => {
     await start(si.session);
   } catch (err) {
     const m = String(err.message || err);
-    $('aErr').textContent = /already registered|Database error/i.test(m) ? 'Этот ник уже занят'
+    authErr(/already registered|Database error/i.test(m) ? 'Этот ник уже занят — придумайте другой'
       : /Invalid login/i.test(m) ? 'Неверный ник или пароль'
       : /Email not confirmed/i.test(m) ? 'Аккаунт не подтверждён'
-      : 'Ошибка: ' + m;
-  } finally { $('aBtn').disabled = false; }
+      : /fetch|network|Failed/i.test(m) ? 'Нет связи с сервером, попробуйте ещё раз'
+      : 'Ошибка: ' + m);
+  } finally { $('aBtn').disabled = false; $('aBtn').textContent = authMode === 'login' ? 'Войти' : 'Создать аккаунт'; }
 };
 
 // ---------- запуск после входа ----------
