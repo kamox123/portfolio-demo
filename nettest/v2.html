@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Проверка связи 2</title>
+<style>
+  body { margin:0; background:#12101f; color:#f2f0ff; font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; padding:16px; }
+  h1 { font-size:21px; margin:0 0 4px; } p { color:#a9a3c9; margin:0 0 14px; }
+  button { width:100%; padding:14px; border:0; border-radius:14px; background:#7b5cff; color:#fff; font-size:18px; font-weight:700; margin-bottom:14px; }
+  .row { display:flex; justify-content:space-between; gap:10px; background:#1d1a30; border-radius:12px; padding:11px 14px; margin-bottom:7px; }
+  .sub { color:#a9a3c9; font-size:13px; } .st { font-weight:700; white-space:nowrap; }
+  .ok { color:#3ddc84; } .bad { color:#ff5a6a; } .wait { color:#ffcc4d; }
+  #sum { background:#1d1a30; border-radius:12px; padding:12px; margin-top:12px; white-space:pre-wrap; font:13px ui-monospace,Consolas,monospace; }
+</style>
+</head>
+<body>
+<h1>Проверка связи №2</h1>
+<p><b>Выключите VPN</b>, нажмите кнопку и пришлите скриншот всего экрана.</p>
+<button id="go">Проверить</button>
+<div id="list"></div>
+<div id="sum" hidden></div>
+<script>
+const PROJECT = 'https://zqhhczwewvvgeavpulas.supabase.co';
+const KEY = 'sb_publishable_s-wUfxpZmZKf0kEqoTMclQ_uPyuabsp';
+// [название, что это, как проверять]
+const T = [
+  ['Наш сервер: база', 'сообщения, вход', () => httpCors(PROJECT + '/auth/v1/health', { apikey: KEY })],
+  ['Наш сервер: живая связь', 'мгновенная доставка, звонки', () => ws(PROJECT.replace('https', 'wss') + '/realtime/v1/websocket?apikey=' + KEY + '&vsn=1.0.0')],
+  ['Наш сервер: файлы', 'фото, голосовые', () => httpCors(PROJECT + '/storage/v1/version', { apikey: KEY })],
+  ['GitHub Pages', 'сам сайт', () => noCors('https://kamox123.github.io/portfolio-demo/chat/icon-192.png')],
+  ['Render', 'onrender.com', () => noCors('https://vtoroy-mozg-bot.onrender.com/health')],
+  ['Deno Deploy', 'deno.dev', () => noCors('https://deno.dev/')],
+  ['Vercel', 'vercel.app', () => noCors('https://vercel.app/')],
+  ['Netlify', 'netlify.app', () => noCors('https://app.netlify.com/')],
+  ['Cloudflare Workers', 'workers.dev', () => noCors('https://workers.dev/')],
+  ['Yandex Cloud', 'yandexcloud.net', () => noCors('https://functions.yandexcloud.net/')],
+  ['Звонки: STUN Яндекс-доступность', 'stun через браузер', () => stun()],
+];
+const list = document.getElementById('list');
+const rows = T.map(([n, w]) => { const r = document.createElement('div'); r.className = 'row'; r.innerHTML = `<div><div>${n}</div><div class="sub">${w}</div></div><div class="st">—</div>`; list.appendChild(r); return r.querySelector('.st'); });
+const timeout = (p, ms = 10000) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('нет ответа')), ms))]);
+async function noCors(u) { await timeout(fetch(u + (u.includes('?') ? '&' : '?') + 't=' + Date.now(), { mode: 'no-cors', cache: 'no-store' })); }
+async function httpCors(u, h) { const r = await timeout(fetch(u, { headers: h, cache: 'no-store' })); if (r.status >= 500) throw new Error('ошибка ' + r.status); }
+function ws(u) { return timeout(new Promise((res, rej) => { const s = new WebSocket(u); s.onopen = () => { s.close(); res(); }; s.onerror = () => rej(new Error('закрыто')); })); }
+function stun() {
+  return timeout(new Promise((res, rej) => {
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }); pc.createDataChannel('x');
+    pc.onicecandidate = (e) => { if (e.candidate && / srflx /.test(e.candidate.candidate)) { pc.close(); res(); } };
+    pc.createOffer().then((o) => pc.setLocalDescription(o));
+    setTimeout(() => { pc.close(); rej(new Error('нет ответа')); }, 8000);
+  }), 9000);
+}
+document.getElementById('go').onclick = async () => {
+  const lines = [];
+  for (let i = 0; i < T.length; i++) {
+    const st = rows[i]; st.className = 'st wait'; st.textContent = 'проверяю…'; const t0 = performance.now();
+    try { await T[i][2](); const ms = Math.round(performance.now() - t0); st.className = 'st ok'; st.textContent = '✓ ' + ms + ' мс'; lines.push('+ ' + T[i][0]); }
+    catch (e) { st.className = 'st bad'; st.textContent = '✗ ' + e.message; lines.push('- ' + T[i][0] + ' (' + e.message + ')'); }
+  }
+  const s = document.getElementById('sum'); s.hidden = false; s.textContent = lines.join('\n');
+};
+</script>
+</body>
+</html>
