@@ -1,5 +1,5 @@
 // Работа без интернета: оболочка приложения хранится на телефоне, сообщения грузятся из сети
-const CACHE = 'kamox-chat-v1';
+const CACHE = 'kamox-chat-v2';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'supabase.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-180.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', (e) => {

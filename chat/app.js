@@ -114,12 +114,15 @@ async function start() {
 }
 function paintMe() {
   const me = state.me;
-  $('meBtn').innerHTML = avatarHtml(me.display_name, me.avatar_path, 's');
+  $('meBtn').innerHTML = avatarHtml(me.display_name, me.avatar_path, 'sm');
 }
 function heartbeat() { if (state.me && !document.hidden) sb.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', state.me.id).then(() => {}); }
 
 // ---------- список чатов ----------
-async function loadChats() {
+// несколько одновременных запросов на обновление списка объединяются в один
+let chatsLoading = null;
+function loadChats() { return (chatsLoading ??= loadChatsNow().finally(() => (chatsLoading = null))); }
+async function loadChatsNow() {
   const { data, error } = await sb.from('chat_members')
     .select('last_read_at, chats(id,is_group,title,avatar_path,last_message_at, chat_members(user_id, profiles(id,username,display_name,avatar_path,last_seen)))')
     .eq('user_id', state.me.id);
@@ -145,6 +148,7 @@ function chatName(c) { return c.is_group ? c.title : chatPeer(c)?.display_name |
 function chatAvatar(c, cls = '') { const p = chatPeer(c); return c.is_group ? avatarHtml(c.title, c.avatar_path, cls) : avatarHtml(p?.display_name, p?.avatar_path, cls); }
 function preview(m) {
   if (!m) return 'Нет сообщений';
+  if (m.kind === 'system') return `${state.profiles.get(m.sender_id)?.display_name || ''} ${m.body}`.trim();
   const t = { image: '📷 Фото', file: '📎 ' + (m.file_name || 'Файл'), voice: '🎤 Голосовое', call: '📞 ' + (m.body || 'Звонок') }[m.kind] || m.body || '';
   return (m.sender_id === state.me.id ? 'Вы: ' : '') + t;
 }
@@ -213,7 +217,7 @@ async function openChat(id, replace = false) {
   const c = state.chats.get(id); if (!c) return;
   state.open = id;
   const peer = chatPeer(c);
-  $('chatHead').innerHTML = `${chatAvatar(c, 's')}<div style="min-width:0"><div class="t">${esc(chatName(c))}</div>
+  $('chatHead').innerHTML = `${chatAvatar(c, 'sm')}<div style="min-width:0"><div class="t">${esc(chatName(c))}</div>
     <div class="s">${c.is_group ? c.members.length + ' участн.' : seenText(peer)}</div></div>`;
   $('callAudio').classList.toggle('hidden', c.is_group); $('callVideo').classList.toggle('hidden', c.is_group);
   $('msgs').innerHTML = '<p class="sys">Загрузка…</p>';
@@ -311,7 +315,7 @@ function addMsg(m) {
   const list = state.msgs.get(m.chat_id);
   if (list && !list.some((x) => x.id === m.id)) { list.push(m); if (state.open === m.chat_id) renderMsgs(m.sender_id === state.me.id); }
   const c = state.chats.get(m.chat_id);
-  if (c) { c.last = m; if (state.open === m.chat_id && !document.hidden) markRead(c); else if (m.sender_id !== state.me.id) c.unread++; renderChats(); }
+  if (c) { if (!c.last || new Date(m.created_at) >= new Date(c.last.created_at)) c.last = m; if (state.open === m.chat_id && !document.hidden) markRead(c); else if (m.sender_id !== state.me.id) c.unread++; renderChats(); }
 }
 
 // файлы и фото
