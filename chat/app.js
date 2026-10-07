@@ -315,7 +315,7 @@ function msgHtml(m, c) {
   else if (m.kind === 'voice') inner = `<div class="voice" data-voice="${esc(m.file_path)}" data-dur="${m.duration || 0}"><button class="play">${ic('play')}</button><div class="bar">${waveBars(m.id)}</div><span class="dur">${fmtDur(m.duration || 0)}</span></div>`;
   else if (m.kind === 'call') inner = `${ic(/Пропущ|Отмен/.test(m.body || '') ? 'missed' : 'phone')}<span>${esc(m.body)}</span>`;
   else inner = esc(m.body);
-  return `<div class="m ${mine ? 'me' : ''} ${m.kind} ${m.id === state.animId ? 'new' : ''}">${who}${inner}${time}</div>`;
+  return `<div class="m ${mine ? 'me' : ''} k-${m.kind} ${m.id === state.animId ? 'new' : ''}">${who}${inner}${time}</div>`;
 }
 
 const urlCache = new Map();
