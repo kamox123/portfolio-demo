@@ -174,11 +174,14 @@ async function loadChatsNow() {
     state.chats.set(c.id, { ...c, members, lastRead: row.last_read_at, last: null, unread: 0 });
   }
   await Promise.all([...state.chats.values()].map(async (c) => {
-    const [{ data: last }, { count }] = await Promise.all([
-      sb.from('messages').select('*').eq('chat_id', c.id).order('created_at', { ascending: false }).limit(1),
-      sb.from('messages').select('id', { count: 'exact', head: true }).eq('chat_id', c.id).gt('created_at', c.lastRead).neq('sender_id', state.me.id),
-    ]);
-    c.last = last?.[0] || null; c.unread = count || 0;
+    // сначала последнее сообщение, потом счёт строго до него: более новые досчитает addMsg — без двойного счёта
+    const { data: last } = await sb.from('messages').select('*').eq('chat_id', c.id).order('id', { ascending: false }).limit(1);
+    c.last = last?.[0] || null; c.unread = 0;
+    if (c.last) {
+      const { count } = await sb.from('messages').select('id', { count: 'exact', head: true }).eq('chat_id', c.id)
+        .lte('id', c.last.id).gt('created_at', c.lastRead).neq('sender_id', state.me.id).neq('kind', 'system');
+      c.unread = count || 0;
+    }
   }));
   renderChats();
 }
@@ -383,7 +386,7 @@ function addMsg(m) {
   if (c) {
     const isNew = !c.last || m.id > c.last.id; // уже могло попасть в список при загрузке — не считаем второй раз
     if (isNew) c.last = m;
-    if (state.open === m.chat_id && !document.hidden) markRead(c); else if (isNew && m.sender_id !== state.me.id) c.unread++;
+    if (state.open === m.chat_id && !document.hidden) markRead(c); else if (isNew && m.sender_id !== state.me.id && m.kind !== 'system') c.unread++;
     renderChats();
   }
 }
