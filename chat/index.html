@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>KAMOX Chat</title>
-<meta name="theme-color" content="#12101f">
+<meta name="theme-color" content="#0b0b1e">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -15,51 +15,54 @@
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
+<!-- переливающийся фон -->
+<div class="bg" aria-hidden="true"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i></div>
 
 <!-- Вход и регистрация -->
 <section id="sAuth" class="screen">
-  <div class="auth">
-    <div class="logo"><span>K</span></div>
+  <div class="auth glass">
+    <div class="logo"><img src="icon-192.png" alt=""></div>
     <h1>KAMOX Chat</h1>
     <p class="muted">Мессенджер для своих</p>
-    <div class="tabs"><button class="tab on" data-mode="login">Вход</button><button class="tab" data-mode="register">Регистрация</button></div>
+    <div class="seg"><button class="segBtn on" data-mode="login">Вход</button><button class="segBtn" data-mode="register">Регистрация</button><span class="segThumb"></span></div>
     <form id="authForm">
-      <label>Ник<input id="aUser" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="латиница, цифры, _" required></label>
-      <label class="regOnly">Имя<input id="aName" placeholder="как вас показывать" maxlength="40"></label>
-      <label>Пароль<input id="aPass" type="password" autocomplete="current-password" minlength="6" required></label>
+      <label><span>Ник</span><input id="aUser" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="латиница, цифры и _" required></label>
+      <label class="regOnly"><span>Имя</span><input id="aName" placeholder="как вас показывать" maxlength="40"></label>
+      <label><span>Пароль</span><input id="aPass" type="password" autocomplete="current-password" minlength="6" required></label>
       <button class="btn" id="aBtn">Войти</button>
       <p class="err" id="aErr"></p>
     </form>
-    <a class="btn ghost hidden" id="apkLink" href="kamox-chat.apk" download style="display:block;text-decoration:none">📲 Скачать приложение для Android</a>
-    <p class="muted small hidden" id="iosHint">На iPhone: «Поделиться» → «На экран Домой»</p>
+    <a class="btn ghost hidden" id="apkLink" href="kamox-chat.apk" download><i data-ic="download"></i>Скачать приложение для Android</a>
+    <p class="muted small hidden" id="iosHint"><i data-ic="share"></i> На iPhone: «Поделиться» → «На экран Домой»</p>
   </div>
 </section>
 
 <!-- Список чатов -->
 <section id="sChats" class="screen hidden">
-  <header class="top">
+  <header class="top glass">
     <button class="avatarBtn" id="meBtn" aria-label="Профиль"></button>
     <h2>Чаты</h2>
-    <button class="icon" id="newChatBtn" aria-label="Новый чат">✎</button>
+    <button class="icon" id="newChatBtn" aria-label="Новый чат"><i data-ic="edit"></i></button>
   </header>
-  <div id="installTip" class="tip hidden"></div>
-  <div id="chatList" class="list"></div>
-  <p id="emptyChats" class="empty hidden">Пока нет чатов.<br>Нажмите ✎, чтобы найти друга по нику.</p>
+  <div class="list" id="chatScroll">
+    <div id="notifTip" class="tip glass hidden"><i data-ic="bell"></i><span class="grow">Включите уведомления, чтобы не пропускать сообщения</span><button class="chip on" id="notifGo">Включить</button></div>
+    <div id="installTip" class="tip glass hidden"></div>
+    <div id="chatList"></div>
+    <div id="emptyChats" class="empty hidden"><div class="emptyIc"><i data-ic="chat"></i></div><p>Пока нет чатов</p><span class="muted">Нажмите на карандаш вверху, чтобы найти друга по нику</span></div>
+  </div>
 </section>
 
 <!-- Новый чат / группа -->
 <section id="sNew" class="screen hidden">
-  <header class="top">
-    <button class="icon" data-back aria-label="Назад">‹</button>
+  <header class="top glass">
+    <button class="icon" data-back aria-label="Назад"><i data-ic="back"></i></button>
     <h2 id="newTitle">Новый чат</h2>
-    <button class="icon hidden" id="groupNext" aria-label="Создать группу">✓</button>
+    <button class="icon accent hidden" id="groupNext" aria-label="Создать группу"><i data-ic="check"></i></button>
   </header>
   <div class="pad">
-    <input id="userSearch" class="field" placeholder="Поиск по нику" autocapitalize="none" spellcheck="false">
-    <div class="row gap">
-      <button class="chip" id="groupMode">👥 Создать группу</button>
-    </div>
-    <input id="groupTitle" class="field hidden" placeholder="Название группы" maxlength="40">
+    <label class="search glass"><i data-ic="search"></i><input id="userSearch" placeholder="Поиск по нику" autocapitalize="none" spellcheck="false"></label>
+    <button class="rowBtn glass" id="groupMode"><span class="rowIc"><i data-ic="users"></i></span><span class="grow">Создать группу</span><i data-ic="next" class="dim"></i></button>
+    <input id="groupTitle" class="field glass hidden" placeholder="Название группы" maxlength="40">
     <div id="picked" class="picked"></div>
   </div>
   <div id="userList" class="list"></div>
@@ -67,43 +70,46 @@
 
 <!-- Переписка -->
 <section id="sChat" class="screen hidden">
-  <header class="top chatTop">
-    <button class="icon" data-back aria-label="Назад">‹</button>
+  <header class="top glass">
+    <button class="icon" data-back aria-label="Назад"><i data-ic="back"></i></button>
     <div class="chatHead" id="chatHead"></div>
-    <button class="icon" id="callAudio" aria-label="Аудиозвонок">📞</button>
-    <button class="icon" id="callVideo" aria-label="Видеозвонок">🎥</button>
+    <button class="icon" id="callAudio" aria-label="Аудиозвонок"><i data-ic="phone"></i></button>
+    <button class="icon" id="callVideo" aria-label="Видеозвонок"><i data-ic="video"></i></button>
   </header>
   <div id="msgs" class="msgs"></div>
   <div class="composer" id="composer">
-    <button class="icon" id="attachBtn" aria-label="Прикрепить">📎</button>
+    <button class="icon glass" id="attachBtn" aria-label="Прикрепить"><i data-ic="clip"></i></button>
     <input type="file" id="fileInput" hidden>
-    <textarea id="msgInput" rows="1" placeholder="Сообщение"></textarea>
-    <button class="icon send" id="sendBtn" aria-label="Отправить">➤</button>
-    <button class="icon mic" id="micBtn" aria-label="Голосовое">🎤</button>
+    <div class="inputWrap glass"><textarea id="msgInput" rows="1" placeholder="Сообщение"></textarea></div>
+    <button class="icon send" id="sendBtn" aria-label="Отправить"><i data-ic="send"></i></button>
+    <button class="icon glass" id="micBtn" aria-label="Голосовое"><i data-ic="mic"></i></button>
   </div>
-  <div class="recBar hidden" id="recBar">
-    <button class="icon" id="recCancel" aria-label="Отмена">✕</button>
-    <span class="recDot"></span><span id="recTime">0:00</span>
-    <span class="muted grow">Запись голосового…</span>
-    <button class="icon send" id="recSend" aria-label="Отправить">➤</button>
+  <div class="composer hidden" id="recBar">
+    <button class="icon glass" id="recCancel" aria-label="Отмена"><i data-ic="trash"></i></button>
+    <div class="inputWrap glass recInfo"><span class="recDot"></span><span id="recTime">0:00</span><span class="wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></div>
+    <button class="icon send" id="recSend" aria-label="Отправить"><i data-ic="send"></i></button>
   </div>
 </section>
 
 <!-- Профиль -->
 <section id="sProfile" class="screen hidden">
-  <header class="top">
-    <button class="icon" data-back aria-label="Назад">‹</button>
+  <header class="top glass">
+    <button class="icon" data-back aria-label="Назад"><i data-ic="back"></i></button>
     <h2>Профиль</h2><span class="icon"></span>
   </header>
   <div class="pad center">
     <button class="bigAvatar" id="pAvatar"></button>
+    <button class="chip" id="pAvatarBtn"><i data-ic="camera"></i>Сменить фото</button>
     <input type="file" id="avatarInput" accept="image/*" hidden>
-    <p class="muted small">Нажмите на фото, чтобы сменить</p>
-    <input id="pName" class="field" maxlength="40" placeholder="Имя">
-    <p class="muted" id="pUser"></p>
-    <button class="btn" id="pSave">Сохранить</button>
-    <button class="btn ghost" id="pNotif">🔔 Включить уведомления</button>
-    <button class="btn ghost danger" id="pLogout">Выйти</button>
+    <div class="card glass">
+      <label class="fieldLabel">Имя<input id="pName" class="field" maxlength="40"></label>
+      <p class="muted small" id="pUser"></p>
+      <button class="btn" id="pSave">Сохранить</button>
+    </div>
+    <div class="card glass">
+      <button class="rowBtn" id="pNotif"><span class="rowIc"><i data-ic="bell"></i></span><span class="grow" id="pNotifText">Уведомления</span><span class="dim small" id="pNotifState"></span></button>
+      <button class="rowBtn danger" id="pLogout"><span class="rowIc red"><i data-ic="logout"></i></span><span class="grow">Выйти</span></button>
+    </div>
   </div>
 </section>
 
@@ -113,21 +119,20 @@
   <video id="localVideo" autoplay playsinline muted></video>
   <audio id="remoteAudio" autoplay></audio>
   <div class="callInfo">
-    <div class="bigAvatar" id="callAvatar"></div>
+    <div class="ring"><div class="bigAvatar" id="callAvatar"></div></div>
     <h2 id="callName"></h2>
     <p id="callState" class="muted"></p>
   </div>
   <div class="callBtns">
-    <button class="round" id="callMute" aria-label="Микрофон">🎙</button>
-    <button class="round" id="callCam" aria-label="Камера">📷</button>
-    <button class="round accept hidden" id="callAccept" aria-label="Принять">📞</button>
-    <button class="round hang" id="callHang" aria-label="Завершить">✕</button>
+    <button class="round glass" id="callMute" aria-label="Микрофон"><i data-ic="mic"></i></button>
+    <button class="round glass" id="callCam" aria-label="Камера"><i data-ic="video"></i></button>
+    <button class="round accept hidden" id="callAccept" aria-label="Принять"><i data-ic="phone"></i></button>
+    <button class="round hang" id="callHang" aria-label="Завершить"><i data-ic="hangup"></i></button>
   </div>
 </section>
 
-<!-- Просмотр фото -->
 <div id="viewer" class="viewer hidden"><img id="viewerImg" alt=""></div>
-<div id="toast" class="toast hidden"></div>
+<div id="toast" class="toast glass hidden"></div>
 
 <script src="supabase.js"></script>
 <script src="app.js"></script>
