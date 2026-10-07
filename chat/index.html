@@ -91,33 +91,59 @@
   </div>
 </section>
 
-<!-- Профиль -->
+<!-- Настройки -->
 <section id="sProfile" class="screen hidden">
   <header class="top glass">
     <button class="icon" data-back aria-label="Назад"><i data-ic="back"></i></button>
-    <h2>Профиль</h2><span class="icon"></span>
+    <h2>Настройки</h2><span class="icon"></span>
   </header>
-  <div class="pad center">
+  <div class="pad center settings">
     <button class="bigAvatar" id="pAvatar"></button>
     <button class="chip" id="pAvatarBtn"><i data-ic="camera"></i>Сменить фото</button>
     <input type="file" id="avatarInput" accept="image/*" hidden>
+
+    <p class="secTitle">Профиль</p>
     <div class="card glass">
       <label class="fieldLabel">Имя<input id="pName" class="field" maxlength="40"></label>
       <p class="muted small" id="pUser"></p>
       <button class="btn" id="pSave">Сохранить</button>
     </div>
+
+    <p class="secTitle">Уведомления и звуки</p>
     <div class="card glass">
-      <button class="rowBtn" id="pNotif"><span class="rowIc"><i data-ic="bell"></i></span><span class="grow" id="pNotifText">Уведомления</span><span class="dim small" id="pNotifState"></span></button>
+      <button class="rowBtn" id="pNotif"><span class="rowIc"><i data-ic="bell"></i></span><span class="grow">Уведомления</span><span class="dim small" id="pNotifState"></span></button>
+      <div class="rowBtn"><span class="rowIc teal"><i data-ic="sound"></i></span><span class="grow">Звуки</span><button class="switch" data-set="sound" aria-label="Звуки"></button></div>
+      <div class="rowBtn"><span class="rowIc orange"><i data-ic="vibrate"></i></span><span class="grow">Вибрация</span><button class="switch" data-set="vibro" aria-label="Вибрация"></button></div>
+      <button class="rowBtn" id="pTestPush"><span class="rowIc blue"><i data-ic="send"></i></span><span class="grow">Проверить уведомление</span><i data-ic="next" class="dim"></i></button>
+    </div>
+
+    <p class="secTitle">Оформление</p>
+    <div class="card glass">
+      <p class="fieldLabel">Цвет</p>
+      <div class="themes" id="themes"></div>
+      <div class="rowBtn"><span class="rowIc pink"><i data-ic="sparkle"></i></span><span class="grow">Живой фон</span><button class="switch" data-set="anim" aria-label="Живой фон"></button></div>
+      <p class="fieldLabel">Размер текста</p>
+      <div class="seg mini" id="fontSeg"><button class="segBtn" data-font="s">Мелкий</button><button class="segBtn" data-font="m">Обычный</button><button class="segBtn" data-font="l">Крупный</button></div>
+    </div>
+
+    <p class="secTitle">Аккаунт</p>
+    <div class="card glass">
+      <button class="rowBtn" id="pPass"><span class="rowIc violet"><i data-ic="lock"></i></span><span class="grow">Сменить пароль</span><i data-ic="next" class="dim"></i></button>
+      <div class="passBox hidden" id="passBox">
+        <input id="newPass" class="field" type="password" placeholder="Новый пароль (от 6 символов)" autocomplete="new-password">
+        <button class="btn" id="passSave">Сменить</button>
+      </div>
       <button class="rowBtn danger" id="pLogout"><span class="rowIc red"><i data-ic="logout"></i></span><span class="grow">Выйти</span></button>
     </div>
+    <p class="muted small">KAMOX Chat · версия <span id="appVer"></span></p>
   </div>
 </section>
 
 <!-- Звонок -->
 <section id="sCall" class="call hidden">
-  <video id="remoteVideo" autoplay playsinline></video>
+  <video id="remoteVideo" autoplay playsinline muted></video>
   <video id="localVideo" autoplay playsinline muted></video>
-  <audio id="remoteAudio" autoplay></audio>
+  <audio id="remoteAudio" autoplay playsinline></audio>
   <div class="callInfo">
     <div class="ring"><div class="bigAvatar" id="callAvatar"></div></div>
     <h2 id="callName"></h2>
@@ -126,6 +152,7 @@
   <div class="callBtns">
     <button class="round glass" id="callMute" aria-label="Микрофон"><i data-ic="mic"></i></button>
     <button class="round glass" id="callCam" aria-label="Камера"><i data-ic="video"></i></button>
+    <button class="round glass" id="callFlip" aria-label="Сменить камеру"><i data-ic="flip"></i></button>
     <button class="round accept hidden" id="callAccept" aria-label="Принять"><i data-ic="phone"></i></button>
     <button class="round hang" id="callHang" aria-label="Завершить"><i data-ic="hangup"></i></button>
   </div>
@@ -133,6 +160,7 @@
 
 <div id="viewer" class="viewer hidden"><img id="viewerImg" alt=""></div>
 <div id="toast" class="toast glass hidden"></div>
+<div id="netBar" class="netBar glass hidden"><span class="spin"></span><span id="netText">Нет связи с сервером. Переподключаюсь…</span></div>
 
 <script src="supabase.js"></script>
 <script src="app.js"></script>

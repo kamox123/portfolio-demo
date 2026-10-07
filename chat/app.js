@@ -39,10 +39,29 @@ const P = {
   missed: '<path d="M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/><path d="M16 3l5 5M21 3l-5 5"/>',
   install: '<rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M12 7v7M9 11l3 3 3-3M10 18.5h4"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  sound: '<path d="M4 9.5v5h3.5L12 19V5L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/>',
+  vibrate: '<rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M3.5 8.5v7M20.5 8.5v7M11 17.5h2"/>',
+  sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>',
+  lock: '<rect x="4.5" y="10.5" width="15" height="10.5" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
+  flip: '<path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.8L10 4h4l1.7 2h1.8A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"/><path d="M9 12.5a3 3 0 0 1 5.5-1.6M15 12.5a3 3 0 0 1-5.5 1.6M14.6 9v2h-2M9.4 16v-2h2"/>',
 };
 const ic = (n) => `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n] || ''}</svg>`;
 function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEach((i) => { i.outerHTML = ic(i.dataset.ic); }); }
 paintIcons();
+
+// ---------- настройки (хранятся на этом устройстве) ----------
+const APP_VER = '1.3';
+const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
+const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
+function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
+function applyPrefs() {
+  const h = document.documentElement;
+  h.dataset.theme = prefs.theme; h.dataset.font = prefs.font; h.classList.toggle('noanim', !prefs.anim);
+  document.querySelectorAll('.switch[data-set]').forEach((sw) => sw.classList.toggle('on', !!prefs[sw.dataset.set]));
+  document.querySelectorAll('#fontSeg .segBtn').forEach((b) => b.classList.toggle('on', b.dataset.font === prefs.font));
+  document.querySelectorAll('#themes button').forEach((b) => b.classList.toggle('on', b.dataset.theme === prefs.theme));
+}
+const VIBRO = (p) => { if (prefs.vibro) navigator.vibrate?.(p); };
 
 // ---------- экраны ----------
 function show(id, push = true) {
@@ -126,9 +145,9 @@ $('authForm').onsubmit = async (e) => {
       const { error } = await sb.auth.signUp({ email: MAIL(user), password: pass, options: { data: { username: user, display_name: name || user } } });
       if (error) throw error;
     }
-    const { error } = await sb.auth.signInWithPassword({ email: MAIL(user), password: pass });
+    const { data: si, error } = await sb.auth.signInWithPassword({ email: MAIL(user), password: pass });
     if (error) throw error;
-    await start();
+    await start(si.session);
   } catch (err) {
     const m = String(err.message || err);
     $('aErr').textContent = /already registered|Database error/i.test(m) ? 'Этот ник уже занят'
@@ -139,11 +158,13 @@ $('authForm').onsubmit = async (e) => {
 };
 
 // ---------- запуск после входа ----------
-async function start() {
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) { show('sAuth', false); return; }
-  const { data: me } = await sb.from('profiles').select('*').eq('id', user.id).single();
-  state.me = me; state.profiles.set(me.id, me);
+async function start(session) {
+  const uid = session.user.id;
+  // профиль из памяти телефона — экран открывается сразу, даже без интернета
+  try { const cached = JSON.parse(localStorage.getItem('kc-me') || 'null'); if (cached?.id === uid) state.me = cached; } catch {}
+  if (!state.me) state.me = { id: uid, username: session.user.user_metadata?.username || '', display_name: session.user.user_metadata?.display_name || 'Я', avatar_path: null };
+  state.profiles.set(uid, state.me);
+  refreshMe();
   paintMe();
   state.history = [];
   show('sChats', false);
@@ -154,6 +175,18 @@ async function start() {
   installTip();
   syncPush(false);
 }
+async function refreshMe() {
+  const { data: me, error } = await sb.from('profiles').select('*').eq('id', state.me.id).single();
+  if (error || !me) { netDown(); setTimeout(refreshMe, 5000); return; }
+  netUp(); state.me = me; state.profiles.set(me.id, me); try { localStorage.setItem('kc-me', JSON.stringify(me)); } catch {}
+  paintMe();
+}
+// полоса «нет связи»
+let netTimer = null;
+function netDown() { clearTimeout(netTimer); netTimer = setTimeout(() => $('netBar').classList.remove('hidden'), 1500); }
+function netUp() { clearTimeout(netTimer); $('netBar').classList.add('hidden'); }
+window.addEventListener('offline', netDown);
+window.addEventListener('online', () => { if (state.me) { loadChats(); refreshMe(); } });
 function paintMe() { $('meBtn').innerHTML = avatarHtml(state.me.display_name, state.me.avatar_path, 'sm'); }
 function heartbeat() { if (state.me && !document.hidden) sb.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', state.me.id).then(() => {}); }
 
@@ -164,7 +197,8 @@ async function loadChatsNow() {
   const { data, error } = await sb.from('chat_members')
     .select('last_read_at, chats(id,is_group,title,avatar_path,last_message_at, chat_members(user_id, profiles(id,username,display_name,avatar_path,last_seen)))')
     .eq('user_id', state.me.id);
-  if (error) { toast('Не удалось загрузить чаты'); return; }
+  if (error) { netDown(); setTimeout(loadChats, 5000); return; }
+  netUp();
   state.chats.clear();
   if (!state.listShown) { state.listShown = true; $('chatList').classList.add('animList'); setTimeout(() => $('chatList').classList.remove('animList'), 900); }
   for (const row of data) {
@@ -362,7 +396,7 @@ syncSendBtn();
 $('sendBtn').onclick = sendText;
 async function sendText() {
   const body = input.value.trim(); if (!body || !state.open) return;
-  const b = $('sendBtn'); b.classList.remove('fly'); void b.offsetWidth; b.classList.add('fly'); sfx.send(); navigator.vibrate?.(15);
+  const b = $('sendBtn'); b.classList.remove('fly'); void b.offsetWidth; b.classList.add('fly'); sfx.send(); VIBRO(15);
   input.value = ''; input.style.height = 'auto'; input.focus(); setTimeout(syncSendBtn, 420); // кнопка успевает «улететь»
   await insertMsg({ kind: 'text', body });
 }
@@ -438,7 +472,7 @@ $('micBtn').onclick = async () => {
     rec = { mr, stream, chunks: [], t0: Date.now(), send: false };
     mr.ondataavailable = (e) => e.data.size && rec.chunks.push(e.data);
     mr.onstop = finishVoice;
-    mr.start(250); sfx.recStart(); navigator.vibrate?.(20);
+    mr.start(250); sfx.recStart(); VIBRO(20);
     $('composer').classList.add('hidden'); $('recBar').classList.remove('hidden');
     rec.timer = setInterval(() => { $('recTime').textContent = fmtDur((Date.now() - rec.t0) / 1000); if (Date.now() - rec.t0 > 300000) stopVoice(true); }, 250);
   } catch { toast('Нет доступа к микрофону'); }
@@ -467,13 +501,18 @@ function subscribe() {
       if (m.sender_id !== state.me.id && (state.open !== m.chat_id || document.hidden)) notifyLocal(m);
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_members', filter: `user_id=eq.${state.me.id}` }, () => loadChats())
-    .subscribe();
+    .subscribe((st) => {
+      // связь восстановилась после обрыва — догружаем то, что пропустили
+      if (st === 'SUBSCRIBED') { netUp(); if (state.wasDown) { state.wasDown = false; loadChats(); if (state.open) openChat(state.open, true); } }
+      else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT' || st === 'CLOSED') { state.wasDown = true; netDown(); }
+    });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { heartbeat(); const c = state.chats.get(state.open); if (c) markRead(c); } });
 }
 // ---------- звуки (синтезируются на лету, без файлов) ----------
 let audioCtx;
 function ac() { audioCtx ??= new AudioContext(); if (audioCtx.state === 'suspended') audioCtx.resume(); return audioCtx; }
 function beep(f = 880, len = 0.12, vol = 0.12) {
+  if (!prefs.sound) return;
   try { const a = ac(), o = a.createOscillator(), g = a.createGain();
     o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(vol, a.currentTime); g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + len);
     o.connect(g).connect(a.destination); o.start(); o.stop(a.currentTime + len); } catch {}
@@ -481,6 +520,7 @@ function beep(f = 880, len = 0.12, vol = 0.12) {
 const sfx = {
   // «вжух» при отправке: шум через фильтр, частота быстро уходит вверх
   send() {
+    if (!prefs.sound) return;
     try {
       const a = ac(), t = a.currentTime, len = 0.22;
       const buf = a.createBuffer(1, a.sampleRate * len, a.sampleRate), d = buf.getChannelData(0);
@@ -507,7 +547,7 @@ function notifyLocal(m) {
   const c = state.chats.get(m.chat_id), p = state.profiles.get(m.sender_id);
   const title = c?.is_group ? `${c.title}: ${p?.display_name}` : p?.display_name || 'Новое сообщение';
   const text = previewParts(m)[1];
-  navigator.vibrate?.(40);
+  VIBRO(40);
   if (document.hidden) return; // свёрнутое приложение получит пуш от сервера
   if (state.open !== m.chat_id) toast(`${title}: ${text}`);
 }
@@ -573,7 +613,25 @@ $('avatarInput').onchange = async () => {
 };
 $('pLogout').onclick = async () => {
   try { const sub = await (await navigator.serviceWorker?.ready)?.pushManager?.getSubscription(); if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); } } catch {}
+  try { localStorage.removeItem('kc-me'); } catch {}
   await sb.auth.signOut(); location.reload();
+};
+
+$('themes').innerHTML = THEMES.map(([id, name, a, b]) => `<button data-theme="${id}" style="background:linear-gradient(135deg,${a},${b})" aria-label="${name}"><span>${name}</span></button>`).join('');
+$('themes').querySelectorAll('button').forEach((b) => (b.onclick = () => { prefs.theme = b.dataset.theme; savePrefs(); sfx.receive(); }));
+document.querySelectorAll('.switch[data-set]').forEach((sw) => (sw.onclick = () => { prefs[sw.dataset.set] = !prefs[sw.dataset.set]; savePrefs(); if (sw.dataset.set === 'sound') sfx.receive(); if (sw.dataset.set === 'vibro') VIBRO(60); }));
+document.querySelectorAll('#fontSeg .segBtn').forEach((b) => (b.onclick = () => { prefs.font = b.dataset.font; savePrefs(); }));
+$('pPass').onclick = () => { $('passBox').classList.toggle('hidden'); $('newPass').focus(); };
+$('passSave').onclick = async () => {
+  const p = $('newPass').value; if (p.length < 6) return toast('Пароль минимум 6 символов');
+  const { error } = await sb.auth.updateUser({ password: p });
+  if (error) return toast('Ошибка: ' + error.message);
+  $('newPass').value = ''; $('passBox').classList.add('hidden'); toast('Пароль изменён');
+};
+$('pTestPush').onclick = async () => {
+  if (!(await syncPush(true))) return;
+  const { error } = await sb.functions.invoke('notify', { body: { type: 'test' } });
+  toast(error ? 'Сервер уведомлений ещё не подключён' : 'Отправил — сверните приложение, уведомление придёт через пару секунд', 4000);
 };
 
 // подсказка «установить как приложение»
@@ -606,7 +664,7 @@ async function onSignal(s) {
     call.incoming = s; call.peer = s.from; call.chat = s.chat; call.video = !!s.video;
     if (!state.profiles.has(s.from)) { const { data } = await sb.from('profiles').select('*').eq('id', s.from).single(); if (data) state.profiles.set(data.id, data); }
     openCallUi('Входящий ' + (s.video ? 'видеозвонок' : 'звонок'), true);
-    const ring = () => { beep(784, 0.22, 0.16); setTimeout(() => beep(988, 0.3, 0.16), 260); navigator.vibrate?.([300, 200, 300]); };
+    const ring = () => { beep(784, 0.22, 0.16); setTimeout(() => beep(988, 0.3, 0.16), 260); VIBRO([300, 200, 300]); };
     ring(); call.ring = setInterval(ring, 1800);
   } else if (s.from !== call.peer) return;
   else if (s.type === 'answer') { clearInterval(call.resend); await call.pc.setRemoteDescription(s.sdp); flushIce(); setCallState('Соединение…'); }
@@ -620,7 +678,11 @@ function flushIce() { call.pendingIce.forEach((c) => call.pc.addIceCandidate(c).
 function newPc() {
   const pc = new RTCPeerConnection({ iceServers: ICE });
   pc.onicecandidate = (e) => e.candidate && signal(call.peer, { type: 'ice', c: e.candidate.toJSON() });
-  pc.ontrack = (e) => { const st = e.streams[0]; $('remoteAudio').srcObject = st; if (e.track.kind === 'video') { $('remoteVideo').srcObject = st; $('sCall').classList.add('video'); } };
+  pc.ontrack = (e) => {
+    const st = e.streams[0] || new MediaStream([e.track]);
+    if (e.track.kind === 'audio') { $('remoteAudio').srcObject = st; $('remoteAudio').play().catch(() => {}); }
+    if (e.track.kind === 'video') { const v = $('remoteVideo'); v.srcObject = st; v.play().catch(() => {}); $('sCall').classList.add('video'); }
+  };
   pc.onconnectionstatechange = () => {
     if (pc.connectionState === 'connected' && !call.started) { call.started = Date.now(); call.timer = setInterval(() => setCallState(fmtDur((Date.now() - call.started) / 1000)), 1000); }
     if (pc.connectionState === 'failed') endCall(true, 'Не удалось соединиться');
@@ -638,7 +700,7 @@ async function startCall(video) {
   const media = await getMedia(video); if (!media) return;
   call.local = media; call.pc = newPc();
   media.getTracks().forEach((t) => call.pc.addTrack(t, media));
-  if (video) { $('localVideo').srcObject = media; $('sCall').classList.add('video'); }
+  if (video) showSelf(media);
   openCallUi('Вызов…', false);
   const offer = await call.pc.createOffer(); await call.pc.setLocalDescription(offer);
   const send = () => signal(peer.id, { type: 'offer', sdp: call.pc?.localDescription?.toJSON(), video, chat: c.id });
@@ -648,14 +710,27 @@ async function startCall(video) {
   sb.functions.invoke('notify', { body: { type: 'ring', chat: c.id, video } }).catch(() => {});
   call.noAnswer = setTimeout(() => { if (!call.started) { signal(call.peer, { type: 'hangup' }); endCall(true, 'Нет ответа'); } }, 45000);
 }
-$('callAudio').onclick = () => startCall(false);
-$('callVideo').onclick = () => startCall(true);
+function showSelf(media) { const v = $('localVideo'); v.srcObject = media; v.play().catch(() => {}); $('sCall').classList.add('selfcam'); }
+// телефоны разрешают звук только после нажатия: «разблокируем» плеер прямо в момент нажатия кнопки
+function unlockAudio() { const a = $('remoteAudio'); a.muted = false; a.play().catch(() => {}); ac(); }
+$('callAudio').onclick = () => { unlockAudio(); startCall(false); };
+$('callVideo').onclick = () => { unlockAudio(); startCall(true); };
+$('callFlip').onclick = async () => {
+  const old = call.local?.getVideoTracks()[0]; if (!old) return;
+  call.facing = call.facing === 'environment' ? 'user' : 'environment';
+  try {
+    const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: call.facing, width: 640, height: 480 } });
+    const t = st.getVideoTracks()[0];
+    await call.pc?.getSenders().find((x) => x.track?.kind === 'video')?.replaceTrack(t);
+    call.local.removeTrack(old); old.stop(); call.local.addTrack(t); showSelf(call.local);
+  } catch { toast('Не удалось переключить камеру'); }
+};
 $('callAccept').onclick = async () => {
-  clearInterval(call.ring); const s = call.incoming;
+  unlockAudio(); clearInterval(call.ring); const s = call.incoming;
   const media = await getMedia(s.video); if (!media) { declineCall(); return; }
   call.local = media; call.pc = newPc();
   media.getTracks().forEach((t) => call.pc.addTrack(t, media));
-  if (s.video) { $('localVideo').srcObject = media; $('sCall').classList.add('video'); }
+  if (s.video) showSelf(media);
   await call.pc.setRemoteDescription(s.sdp); flushIce();
   const ans = await call.pc.createAnswer(); await call.pc.setLocalDescription(ans);
   signal(call.peer, { type: 'answer', sdp: call.pc.localDescription.toJSON() });
@@ -684,7 +759,7 @@ async function endCall(iRecord, text) {
   call.local?.getTracks().forEach((t) => t.stop());
   call.pc?.close();
   Object.assign(call, { pc: null, local: null, started: 0, incoming: null, pendingIce: [] });
-  $('sCall').classList.add('hidden'); $('sCall').classList.remove('video');
+  $('sCall').classList.add('hidden'); $('sCall').classList.remove('video', 'selfcam'); call.facing = 'user';
   ['remoteVideo', 'localVideo', 'remoteAudio'].forEach((id) => ($(id).srcObject = null));
   $('callMute').classList.remove('off'); $('callCam').classList.remove('off');
   if (text) toast(text);
@@ -702,8 +777,10 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.se
 navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.chat && state.chats.has(e.data.chat)) openChat(e.data.chat); });
 // открыли приложение нажатием на уведомление: ?chat=… — сразу в нужный чат
 const openFromPush = new URLSearchParams(location.search).get('chat');
+document.getElementById('appVer').textContent = APP_VER;
+applyPrefs();
 sb.auth.getSession().then(async ({ data }) => {
   if (!data.session) return show('sAuth', false);
-  await start();
+  await start(data.session);
   if (openFromPush && state.chats.has(openFromPush)) openChat(openFromPush);
 });
