@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Проверка связи</title>
+<style>
+  :root { --bg:#12101f; --card:#1d1a30; --text:#f2f0ff; --muted:#a9a3c9; --ok:#3ddc84; --bad:#ff5a6a; --wait:#ffcc4d; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding:16px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  p { color:var(--muted); margin:0 0 14px; }
+  button { width:100%; padding:14px; border:0; border-radius:14px; background:#7b5cff; color:#fff; font-size:18px; font-weight:700; margin-bottom:14px; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--card); border-radius:12px; padding:12px 14px; margin-bottom:8px; }
+  .name { font-weight:600; } .sub { color:var(--muted); font-size:13px; }
+  .st { font-weight:700; white-space:nowrap; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); } .wait { color:var(--wait); }
+  #sum { background:var(--card); border-radius:12px; padding:12px 14px; margin-top:12px; white-space:pre-wrap; font-family:ui-monospace, Consolas, monospace; font-size:13px; }
+</style>
+</head>
+<body>
+<h1>Проверка связи для мессенджера</h1>
+<p>Выключите VPN и нажмите кнопку. Потом сделайте скриншот всего экрана.</p>
+<button id="go">Проверить</button>
+<div id="list"></div>
+<div id="sum" hidden></div>
+<script>
+// Какие сервисы проверяем: адрес и что это для мессенджера
+const targets = [
+  ['GitHub Pages', 'сам сайт мессенджера', 'https://kamox123.github.io/portfolio-demo/hodulki2/icon-192.png'],
+  ['Render', 'свой сервер (как бот «Второй мозг»)', 'https://vtoroy-mozg-bot.onrender.com/health'],
+  ['Supabase', 'база + файлы + сообщения в реальном времени', 'https://api.supabase.com/'],
+  ['Firebase', 'база Google', 'https://firestore.googleapis.com/'],
+  ['Google push', 'уведомления на Android', 'https://fcm.googleapis.com/'],
+  ['Apple push', 'уведомления на iPhone', 'https://web.push.apple.com/'],
+  ['Cloudflare', 'серверы Cloudflare', 'https://workers.cloudflare.com/'],
+  ['Yandex Cloud', 'российское облако', 'https://functions.yandexcloud.net/'],
+  ['VK Cloud', 'российское облако', 'https://cloud.vk.com/'],
+  ['Google STUN', 'для звонков', 'https://stun.l.google.com/'],
+];
+const list = document.getElementById('list');
+const rows = targets.map(([name, what]) => {
+  const r = document.createElement('div'); r.className = 'row';
+  r.innerHTML = `<div><div class="name">${name}</div><div class="sub">${what}</div></div><div class="st">—</div>`;
+  list.appendChild(r); return r.querySelector('.st');
+});
+// Проверка: если сервер ответил хоть что-то — он доступен (ответ закрыт для чтения, но это не важно)
+async function probe(url) {
+  const t0 = performance.now(); const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 10000);
+  try { await fetch(url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(), { mode: 'no-cors', cache: 'no-store', signal: ctl.signal }); return { ok: true, ms: Math.round(performance.now() - t0) }; }
+  catch (e) { return { ok: false, ms: Math.round(performance.now() - t0), timeout: e.name === 'AbortError' }; }
+  finally { clearTimeout(tm); }
+}
+document.getElementById('go').onclick = async () => {
+  const lines = [];
+  for (let i = 0; i < targets.length; i++) {
+    const st = rows[i]; st.className = 'st wait'; st.textContent = 'проверяю…';
+    const r = await probe(targets[i][2]);
+    st.className = 'st ' + (r.ok ? 'ok' : 'bad');
+    st.textContent = r.ok ? `✓ ${r.ms} мс` : (r.timeout ? '✗ нет ответа' : '✗ заблокирован');
+    lines.push(`${r.ok ? '+' : '-'} ${targets[i][0]} ${r.ms}мс`);
+  }
+  const sum = document.getElementById('sum'); sum.hidden = false;
+  sum.textContent = navigator.userAgent.replace(/\(.*?\)/, '').slice(0, 60) + '\n' + lines.join('\n');
+};
+</script>
+</body>
+</html>
