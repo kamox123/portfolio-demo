@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<title>KAMOX Chat</title>
+<meta name="theme-color" content="#12101f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KAMOX Chat">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- Вход и регистрация -->
+<section id="sAuth" class="screen">
+  <div class="auth">
+    <div class="logo"><span>K</span></div>
+    <h1>KAMOX Chat</h1>
+    <p class="muted">Мессенджер для своих</p>
+    <div class="tabs"><button class="tab on" data-mode="login">Вход</button><button class="tab" data-mode="register">Регистрация</button></div>
+    <form id="authForm">
+      <label>Ник<input id="aUser" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="латиница, цифры, _" required></label>
+      <label class="regOnly">Имя<input id="aName" placeholder="как вас показывать" maxlength="40"></label>
+      <label>Пароль<input id="aPass" type="password" autocomplete="current-password" minlength="6" required></label>
+      <button class="btn" id="aBtn">Войти</button>
+      <p class="err" id="aErr"></p>
+    </form>
+  </div>
+</section>
+
+<!-- Список чатов -->
+<section id="sChats" class="screen hidden">
+  <header class="top">
+    <button class="avatarBtn" id="meBtn" aria-label="Профиль"></button>
+    <h2>Чаты</h2>
+    <button class="icon" id="newChatBtn" aria-label="Новый чат">✎</button>
+  </header>
+  <div id="installTip" class="tip hidden"></div>
+  <div id="chatList" class="list"></div>
+  <p id="emptyChats" class="empty hidden">Пока нет чатов.<br>Нажмите ✎, чтобы найти друга по нику.</p>
+</section>
+
+<!-- Новый чат / группа -->
+<section id="sNew" class="screen hidden">
+  <header class="top">
+    <button class="icon" data-back aria-label="Назад">‹</button>
+    <h2 id="newTitle">Новый чат</h2>
+    <button class="icon hidden" id="groupNext" aria-label="Создать группу">✓</button>
+  </header>
+  <div class="pad">
+    <input id="userSearch" class="field" placeholder="Поиск по нику" autocapitalize="none" spellcheck="false">
+    <div class="row gap">
+      <button class="chip" id="groupMode">👥 Создать группу</button>
+    </div>
+    <input id="groupTitle" class="field hidden" placeholder="Название группы" maxlength="40">
+    <div id="picked" class="picked"></div>
+  </div>
+  <div id="userList" class="list"></div>
+</section>
+
+<!-- Переписка -->
+<section id="sChat" class="screen hidden">
+  <header class="top chatTop">
+    <button class="icon" data-back aria-label="Назад">‹</button>
+    <div class="chatHead" id="chatHead"></div>
+    <button class="icon" id="callAudio" aria-label="Аудиозвонок">📞</button>
+    <button class="icon" id="callVideo" aria-label="Видеозвонок">🎥</button>
+  </header>
+  <div id="msgs" class="msgs"></div>
+  <div class="composer" id="composer">
+    <button class="icon" id="attachBtn" aria-label="Прикрепить">📎</button>
+    <input type="file" id="fileInput" hidden>
+    <textarea id="msgInput" rows="1" placeholder="Сообщение"></textarea>
+    <button class="icon send" id="sendBtn" aria-label="Отправить">➤</button>
+    <button class="icon mic" id="micBtn" aria-label="Голосовое">🎤</button>
+  </div>
+  <div class="recBar hidden" id="recBar">
+    <button class="icon" id="recCancel" aria-label="Отмена">✕</button>
+    <span class="recDot"></span><span id="recTime">0:00</span>
+    <span class="muted grow">Запись голосового…</span>
+    <button class="icon send" id="recSend" aria-label="Отправить">➤</button>
+  </div>
+</section>
+
+<!-- Профиль -->
+<section id="sProfile" class="screen hidden">
+  <header class="top">
+    <button class="icon" data-back aria-label="Назад">‹</button>
+    <h2>Профиль</h2><span class="icon"></span>
+  </header>
+  <div class="pad center">
+    <button class="bigAvatar" id="pAvatar"></button>
+    <input type="file" id="avatarInput" accept="image/*" hidden>
+    <p class="muted small">Нажмите на фото, чтобы сменить</p>
+    <input id="pName" class="field" maxlength="40" placeholder="Имя">
+    <p class="muted" id="pUser"></p>
+    <button class="btn" id="pSave">Сохранить</button>
+    <button class="btn ghost" id="pNotif">🔔 Включить уведомления</button>
+    <button class="btn ghost danger" id="pLogout">Выйти</button>
+  </div>
+</section>
+
+<!-- Звонок -->
+<section id="sCall" class="call hidden">
+  <video id="remoteVideo" autoplay playsinline></video>
+  <video id="localVideo" autoplay playsinline muted></video>
+  <audio id="remoteAudio" autoplay></audio>
+  <div class="callInfo">
+    <div class="bigAvatar" id="callAvatar"></div>
+    <h2 id="callName"></h2>
+    <p id="callState" class="muted"></p>
+  </div>
+  <div class="callBtns">
+    <button class="round" id="callMute" aria-label="Микрофон">🎙</button>
+    <button class="round" id="callCam" aria-label="Камера">📷</button>
+    <button class="round accept hidden" id="callAccept" aria-label="Принять">📞</button>
+    <button class="round hang" id="callHang" aria-label="Завершить">✕</button>
+  </div>
+</section>
+
+<!-- Просмотр фото -->
+<div id="viewer" class="viewer hidden"><img id="viewerImg" alt=""></div>
+<div id="toast" class="toast hidden"></div>
+
+<script src="supabase.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
