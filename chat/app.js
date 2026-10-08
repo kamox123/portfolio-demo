@@ -52,7 +52,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '1.5';
+const APP_VER = '1.6';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -787,8 +787,22 @@ async function endCall(iRecord, text) {
 }
 
 // ---------- старт ----------
-if (/android/i.test(navigator.userAgent) && !window.Capacitor) $('apkLink').classList.remove('hidden');
-if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !navigator.standalone) $('iosHint').classList.remove('hidden');
+const UA = navigator.userAgent, IS_IOS = /iphone|ipad|ipod/i.test(UA) || (/Macintosh/.test(UA) && navigator.maxTouchPoints > 1);
+const IS_APP = !!window.Capacitor || matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+if (/android/i.test(UA) && !window.Capacitor) $('apkLink').classList.remove('hidden');
+if (IS_IOS && !navigator.standalone) $('iosHint').classList.remove('hidden');
+// начальный экран: скачать приложение или продолжить в браузере
+if (IS_IOS) { $('wAndroid').classList.add('hidden'); $('wIos').classList.remove('hidden'); }
+// встроенные браузеры (Telegram, VK, Instagram…) часто не скачивают файлы — предлагаем Chrome
+if (/android/i.test(UA) && /; wv\)|Telegram|VKAndroidApp|Instagram|FBAN|FB_IAB|YaApp|MiuiBrowser/i.test(UA)) {
+  $('wInApp').classList.remove('hidden');
+  $('wChrome').href = 'intent://' + location.host + location.pathname.replace(/[^/]*$/, '') + 'kamox-chat.apk#Intent;scheme=https;package=com.android.chrome;end';
+}
+$('wApk').addEventListener('click', () => $('wSteps').classList.remove('hidden'));
+$('wWeb').onclick = () => { try { localStorage.setItem('kc-web', '1'); } catch {} show('sAuth', false); };
+if (!IS_APP) { $('toWelcome').classList.remove('hidden'); $('apkLink').classList.add('hidden'); }
+$('toWelcome').onclick = () => show('sWelcome', false);
+const firstScreen = () => { let web = false; try { web = !!localStorage.getItem('kc-web'); } catch {} return IS_APP || web ? 'sAuth' : 'sWelcome'; };
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.chat && state.chats.has(e.data.chat)) openChat(e.data.chat); });
 // открыли приложение нажатием на уведомление: ?chat=… — сразу в нужный чат
@@ -796,7 +810,7 @@ const openFromPush = new URLSearchParams(location.search).get('chat');
 document.getElementById('appVer').textContent = APP_VER;
 applyPrefs();
 sb.auth.getSession().then(async ({ data }) => {
-  if (!data.session) return show('sAuth', false);
+  if (!data.session) return show(firstScreen(), false);
   await start(data.session);
   if (openFromPush && state.chats.has(openFromPush)) openChat(openFromPush);
 });

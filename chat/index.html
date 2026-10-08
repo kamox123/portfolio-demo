@@ -18,8 +18,34 @@
 <!-- переливающийся фон -->
 <div class="bg" aria-hidden="true"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i></div>
 
+<!-- Начальный экран: веб или приложение -->
+<section id="sWelcome" class="screen hidden">
+  <div class="auth glass welcome">
+    <div class="logo"><img src="icon-192.png" alt=""></div>
+    <h1>KAMOX Chat</h1>
+    <p class="muted">Быстрый и бесплатный мессенджер для своих. Работает без VPN.</p>
+    <ul class="feats">
+      <li><i data-ic="chat"></i>Личные чаты и группы</li>
+      <li><i data-ic="phone"></i>Звонки и видеозвонки</li>
+      <li><i data-ic="mic"></i>Голосовые, фото и файлы</li>
+    </ul>
+    <div id="wAndroid">
+      <a class="btn" id="wApk" href="kamox-chat.apk" download="kamox-chat.apk" type="application/vnd.android.package-archive"><i data-ic="download"></i>Скачать для Android</a>
+      <p class="muted small">Версия 1.5 · 3 МБ · Android 7 и новее</p>
+      <div class="tip glass hidden" id="wInApp"><span class="grow">Вы открыли сайт внутри другого приложения — оно может не дать скачать файл. Откройте в Chrome:</span><a class="chip on" id="wChrome" href="#">Открыть</a></div>
+      <ol class="steps hidden" id="wSteps">
+        <li>Откройте скачанный файл <b>kamox-chat.apk</b> (шторка уведомлений или «Загрузки»)</li>
+        <li>Если спросит — разрешите установку из этого источника</li>
+        <li>Если появится Play Protect — «Подробнее» → «Всё равно установить»</li>
+      </ol>
+    </div>
+    <p class="muted small hidden" id="wIos"><i data-ic="share"></i> На iPhone: «Поделиться» → «На экран Домой»</p>
+    <button class="btn ghost" id="wWeb"><i data-ic="chat"></i>Продолжить в браузере</button>
+  </div>
+</section>
+
 <!-- Вход и регистрация -->
-<section id="sAuth" class="screen">
+<section id="sAuth" class="screen hidden">
   <div class="auth glass">
     <div class="logo"><img src="icon-192.png" alt=""></div>
     <h1>KAMOX Chat</h1>
@@ -34,6 +60,7 @@
     </form>
     <a class="btn ghost hidden" id="apkLink" href="kamox-chat.apk" download><i data-ic="download"></i>Скачать приложение для Android</a>
     <p class="muted small hidden" id="iosHint"><i data-ic="share"></i> На iPhone: «Поделиться» → «На экран Домой»</p>
+    <button class="linkBtn small muted hidden" id="toWelcome">Скачать приложение · другие способы</button>
   </div>
 </section>
 
