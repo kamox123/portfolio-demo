@@ -321,3 +321,5 @@ html[data-font="s"] .m { font-size: 14.5px; } html[data-font="l"] .m { font-size
 .admTag { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: rgba(123, 97, 255, .35); vertical-align: 2px; }
 .admTag.red { background: rgba(255, 91, 110, .3); }
 @media (min-width: 560px) { .admStats { grid-template-columns: repeat(4, 1fr); } }
+.bannedIc { display: grid; place-items: center; background: linear-gradient(135deg, #ff5b6e, #ff8a5b); box-shadow: 0 16px 40px rgba(255, 91, 110, .45); }
+.bannedIc svg.ic { width: 46px; height: 46px; color: #fff; }

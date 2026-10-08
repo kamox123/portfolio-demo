@@ -63,7 +63,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '1.9';
+const APP_VER = '1.9.1';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -177,6 +177,7 @@ $('authForm').onsubmit = async (e) => {
   } catch (err) {
     const m = String(err.message || err);
     authErr(/already registered|Database error/i.test(m) ? 'Этот ник уже занят — придумайте другой'
+      : /banned/i.test(m) ? 'Аккаунт заблокирован администратором'
       : /Invalid login/i.test(m) ? 'Неверный ник или пароль'
       : /Email not confirmed/i.test(m) ? 'Аккаунт не подтверждён'
       : /fetch|network|Failed/i.test(m) ? 'Нет связи с сервером, попробуйте ещё раз'
@@ -209,6 +210,7 @@ async function refreshMe() {
   if (error || !me) { netDown(); setTimeout(refreshMe, 5000); return; }
   netUp(); state.me = me; state.profiles.set(me.id, me); try { localStorage.setItem('kc-me', JSON.stringify(me)); } catch {}
   paintMe();
+  if (me.banned) showBanned();
 }
 // полоса «нет связи»
 let netTimer = null;
@@ -217,7 +219,7 @@ function netUp() { clearTimeout(netTimer); $('netBar').classList.add('hidden'); 
 window.addEventListener('offline', netDown);
 window.addEventListener('online', () => { if (state.me) { loadChats(); refreshMe(); } });
 function paintMe() { $('meBtn').innerHTML = avatarHtml(state.me.display_name, state.me.avatar_path, 'sm'); }
-function heartbeat() { if (state.me && !document.hidden) deviceBeat(); if (state.me && !document.hidden && state.me.show_last_seen !== false) sb.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', state.me.id).then(() => {}); }
+function heartbeat() { if (state.me && !document.hidden) { deviceBeat(); checkBanned(); } if (state.me && !document.hidden && state.me.show_last_seen !== false) sb.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', state.me.id).then(() => {}); }
 
 // ---------- список чатов ----------
 let chatsLoading = null;
@@ -900,6 +902,21 @@ function paintAdmin() {
 document.querySelectorAll('#admTabs .segBtn').forEach((b) => (b.onclick = () => { adminTab = b.dataset.tab; paintAdmin(); }));
 $('admSearch').oninput = paintAdmin;
 $('admReload').onclick = loadAdmin;
+
+// ---------- аккаунт заблокирован администратором ----------
+async function checkBanned() {
+  if (!state.v3 || state.banned) return;
+  const { data } = await sb.from('profiles').select('banned').eq('id', state.me.id).maybeSingle();
+  if (data?.banned) showBanned();
+}
+async function showBanned() {
+  if (state.banned) return; state.banned = true;
+  try { endCall(false, null); } catch {}
+  show('sBanned', false);
+  try { localStorage.removeItem('kc-me'); } catch {}
+  await sb.auth.signOut({ scope: 'local' }).catch(() => {});
+}
+$('bannedOk').onclick = () => location.reload();
 
 // ---------- мгновенная доставка ----------
 function subscribe() {
