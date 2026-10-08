@@ -256,6 +256,52 @@ html[data-font="s"] .m { font-size: 14.5px; } html[data-font="l"] .m { font-size
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ---------- звонок: своё видео в углу сразу, чужое — во весь экран, когда придёт ---------- */
+#remoteCanvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; display: none; }
+.call.relayvid #remoteCanvas { display: block; } .call.relayvid video#remoteVideo { display: none !important; }
 .call.selfcam video#localVideo { display: block !important; }
 .call #callFlip { display: none; } .call.selfcam #callFlip { display: grid; }
 .center > * { flex-shrink: 0; }
+
+/* кружки */
+.m.note, .m.me.note { background: none !important; border: 0; box-shadow: none; padding: 0; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.m.note::after { display: none; }
+.vnote { position: relative; width: 220px; height: 220px; border-radius: 50%; overflow: hidden; cursor: pointer; background: rgba(255, 255, 255, .07);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+.vnote video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vring, .noteRing { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); pointer-events: none; }
+.vring circle, .noteRing circle { fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-dasharray: 301.6; stroke-dashoffset: 301.6; }
+.vring circle { stroke: rgba(255, 255, 255, .95); }
+.vplay { position: absolute; inset: 0; display: grid; place-items: center; transition: opacity .2s; }
+.vplay svg.ic { width: 46px; height: 46px; padding: 13px; border-radius: 50%; background: rgba(0, 0, 0, .42); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.vnote.on .vplay { opacity: 0; }
+.vdur { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); background: rgba(0, 0, 0, .45); font-size: 12px; padding: 2px 8px; border-radius: 9px; }
+.m.note .time { position: absolute; right: 4px; bottom: 4px; background: rgba(0, 0, 0, .45); padding: 2px 7px; border-radius: 9px; margin: 0; }
+.noteRec { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  background: rgba(8, 6, 20, .72); -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px); animation: fadeIn .2s; }
+.noteWrap { position: relative; width: min(78vw, 340px); aspect-ratio: 1; border-radius: 50%; overflow: hidden; box-shadow: 0 20px 70px rgba(123, 97, 255, .55); }
+#notePrev { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); background: #000; }
+.noteWrap.back #notePrev { transform: none; }
+.noteRing circle { stroke: var(--pink); stroke-width: 3; transition: stroke-dashoffset .1s linear; }
+.noteTime { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 18px; font-variant-numeric: tabular-nums; }
+.noteBtns { display: flex; gap: 26px; }
+.round.sendRound { background: var(--grad); box-shadow: 0 10px 28px rgba(123, 97, 255, .5); }
+
+/* профиль собеседника, конфиденциальность, устройства */
+.chatHead { cursor: pointer; }
+.uHead { text-align: center; } .uHead h3 { margin: 0; font-size: 26px; letter-spacing: -.4px; } .uHead p { margin: 4px 0 0; } .uHead p.on { color: var(--green); }
+.uActions { display: flex; gap: 10px; width: min(440px, 100%); }
+.uAct { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px; border-radius: 18px; font-size: 13px; font-weight: 650; }
+.uAct svg.ic { width: 23px; height: 23px; color: #c4b5ff; } .uAct:active { transform: scale(.96); }
+.infoRow { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 6px; text-align: left; }
+.infoRow + .infoRow:not(.hidden) { border-top: 1px solid rgba(255, 255, 255, .07); padding-top: 10px; }
+.listTitle { margin: 6px 14px 4px; font-size: 13px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--dim); }
+.cardNote { margin: 4px 6px 2px; text-align: left; }
+.card .rowBtn .small { font-weight: 500; }
+.card .rowBtn .av.sm { flex: none; }
+.qrBox { display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 14px; text-align: center; }
+.qr { width: 220px; background: #fff; border-radius: 18px; padding: 10px; } .qr svg { display: block; width: 100%; height: auto; }
+.devLink { word-break: break-all; margin: 0; }
+.dangerBtn { color: var(--red); width: min(440px, 100%); }
+#privOld { width: min(440px, 100%); }
+#pBioWrap { margin-top: 4px; }
+.card .rowBtn.hidden + .rowBtn { border-top: 0; border-radius: 16px; }

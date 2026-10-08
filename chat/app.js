@@ -11,7 +11,7 @@ const ICE = [{ urls: ['stun:stun.sipnet.ru:3478', 'stun:stun.l.google.com:19302'
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const state = { me: null, chats: new Map(), profiles: new Map(), open: null, msgs: new Map(), screen: 'sAuth', history: [] };
+const state = { v3: false, contacts: new Set(), blocks: new Set(), pendingUser: null, me: null, chats: new Map(), profiles: new Map(), open: null, msgs: new Map(), screen: 'sAuth', history: [] };
 
 // ---------- значки (свои, нарисованные линиями) ----------
 const P = {
@@ -41,6 +41,15 @@ const P = {
   missed: '<path d="M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/><path d="M16 3l5 5M21 3l-5 5"/>',
   install: '<rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M12 7v7M9 11l3 3 3-3M10 18.5h4"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  shield: '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><path d="M8.8 12l2.2 2.2 4.2-4.4"/>',
+  devices: '<rect x="2.5" y="5" width="13" height="10" rx="2"/><path d="M5.5 19h7"/><rect x="16.5" y="8.5" width="5.5" height="11" rx="1.6"/>',
+  link: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/>',
+  userAdd: '<circle cx="10" cy="8" r="3.8"/><path d="M3 20a7 7 0 0 1 14 0M19 8v6M16 11h6"/>',
+  userOk: '<circle cx="10" cy="8" r="3.8"/><path d="M3 20a7 7 0 0 1 14 0M16 11.5l2 2 3.5-3.8"/>',
+  block: '<circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/>',
+  eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
+  qr: '<rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1.2"/><rect x="14" y="3.5" width="6.5" height="6.5" rx="1.2"/><rect x="3.5" y="14" width="6.5" height="6.5" rx="1.2"/><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM14 18.5v2M18.5 14h2"/>',
+  circle: '<circle cx="12" cy="12" r="9"/><rect x="7.5" y="9.5" width="6.5" height="5" rx="1.3"/><path d="M14 11.3l2.5-1.5v4.4L14 12.7"/>',
   sound: '<path d="M4 9.5v5h3.5L12 19V5L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/>',
   vibrate: '<rect x="7" y="3" width="10" height="18" rx="2.5"/><path d="M3.5 8.5v7M20.5 8.5v7M11 17.5h2"/>',
   sparkle: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/>',
@@ -52,7 +61,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '1.6';
+const APP_VER = '1.7';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -112,7 +121,7 @@ function dayLabel(d) {
 }
 function listTime(d) { d = new Date(d); return d.toDateString() === new Date().toDateString() ? hhmm(d) : d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }); }
 function seenText(p) {
-  if (!p?.last_seen) return '';
+  if (!p?.last_seen) return 'был(а) недавно';
   const min = (Date.now() - new Date(p.last_seen)) / 60000;
   if (min < 2) return 'в сети';
   if (min < 60) return `был(а) ${Math.round(min)} мин назад`;
@@ -185,11 +194,13 @@ async function start(session) {
   state.history = [];
   show('sChats', false);
   await loadChats();
+  await loadV3();
   subscribe();
   listenCalls();
   heartbeat(); setInterval(heartbeat, 60000);
   installTip();
   syncPush(false);
+  if (state.pendingUser) { const u = state.pendingUser; state.pendingUser = null; openByUsername(u); }
 }
 async function refreshMe() {
   const { data: me, error } = await sb.from('profiles').select('*').eq('id', state.me.id).single();
@@ -204,7 +215,7 @@ function netUp() { clearTimeout(netTimer); $('netBar').classList.add('hidden'); 
 window.addEventListener('offline', netDown);
 window.addEventListener('online', () => { if (state.me) { loadChats(); refreshMe(); } });
 function paintMe() { $('meBtn').innerHTML = avatarHtml(state.me.display_name, state.me.avatar_path, 'sm'); }
-function heartbeat() { if (state.me && !document.hidden) sb.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', state.me.id).then(() => {}); }
+function heartbeat() { if (state.me && !document.hidden) deviceBeat(); if (state.me && !document.hidden && state.me.show_last_seen !== false) sb.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', state.me.id).then(() => {}); }
 
 // ---------- список чатов ----------
 let chatsLoading = null;
@@ -245,7 +256,7 @@ function chatAvatar(c, cls = '', withOnline = false) {
 function previewParts(m) {
   if (!m) return [null, 'Нет сообщений'];
   if (m.kind === 'system') return [null, `${state.profiles.get(m.sender_id)?.display_name || ''} ${m.body}`.trim()];
-  const map = { image: ['image', 'Фото'], file: ['file', m.file_name || 'Файл'], voice: ['mic', 'Голосовое сообщение'], call: [/Пропущ|Отмен/.test(m.body || '') ? 'missed' : 'phone', m.body || 'Звонок'] };
+  const map = { image: ['image', 'Фото'], file: ['file', m.file_name || 'Файл'], voice: isNote(m) ? ['circle', 'Видеосообщение'] : ['mic', 'Голосовое сообщение'], call: [/Пропущ|Отмен/.test(m.body || '') ? 'missed' : 'phone', m.body || 'Звонок'] };
   return map[m.kind] || [null, m.body || ''];
 }
 function previewHtml(m) {
@@ -285,17 +296,33 @@ function syncNewUi() {
 let searchT;
 $('userSearch').oninput = () => { clearTimeout(searchT); searchT = setTimeout(searchUsers, 250); };
 async function searchUsers() {
-  const q = $('userSearch').value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
-  let req = sb.from('profiles').select('id,username,display_name,avatar_path,last_seen').neq('id', state.me.id).order('last_seen', { ascending: false }).limit(30);
-  if (q) req = req.ilike('username', `%${q}%`);
-  const { data } = await req;
-  (data || []).forEach((p) => state.profiles.set(p.id, p));
-  $('userList').innerHTML = (data || []).map((p) => `
+  const raw = $('userSearch').value, q = toNick(raw.trim().replace(/^@/, ''));
+  let list = [], title = '';
+  if (q.length >= 3) {
+    if (state.v3) { const { data } = await sb.rpc('search_users', { q }); list = data || []; }
+    else { const { data } = await sb.from('profiles').select('id,username,display_name,avatar_path,last_seen').neq('id', state.me.id).ilike('username', q.replace(/_/g, '\\_') + '%').limit(20); list = data || []; }
+    title = list.length ? 'Найдено по нику' : '';
+  } else {
+    // без запроса — только свои: контакты и те, с кем уже есть переписка (всех подряд больше не показываем)
+    const ids = new Set(state.contacts);
+    for (const c of state.chats.values()) if (!c.is_group) { const p = chatPeer(c); if (p && p.id !== state.me.id) ids.add(p.id); }
+    const miss = [...ids].filter((id) => !state.profiles.has(id));
+    if (miss.length) { const { data } = await sb.from('profiles').select('*').in('id', miss); (data || []).forEach((p) => state.profiles.set(p.id, p)); }
+    list = [...ids].map((id) => state.profiles.get(id)).filter(Boolean)
+      .sort((a, b) => (state.contacts.has(b.id) - state.contacts.has(a.id)) || String(a.display_name).localeCompare(b.display_name));
+    title = list.length ? 'Контакты и недавние' : '';
+  }
+  if ($('userSearch').value !== raw) return; // пока искали, запрос уже поменялся
+  list.forEach((p) => state.profiles.set(p.id, { ...(state.profiles.get(p.id) || {}), ...p }));
+  const empty = q.length >= 3
+    ? '<div class="empty" style="margin-top:10vh"><div class="emptyIc">' + ic('search') + '</div><p>Никого не нашли</p><span class="muted">Проверьте ник — его можно посмотреть в настройках у друга</span></div>'
+    : '<div class="empty" style="margin-top:10vh"><div class="emptyIc">' + ic('search') + '</div><p>Найдите друга по нику</p><span class="muted">Введите ник целиком или первые 3 буквы</span></div>';
+  $('userList').innerHTML = (title ? `<p class="listTitle">${title}</p>` : '') + (list.map((p) => `
     <button class="item ${picked.has(p.id) ? 'sel' : ''}" data-user="${p.id}">
       ${avatarHtml(p.display_name, p.avatar_path, '', isOnline(p))}
-      <div class="mid"><div class="t">${esc(p.display_name)}</div><div class="s">@${esc(p.username)} · ${seenText(p)}</div></div>
+      <div class="mid"><div class="t">${esc(p.display_name)}</div><div class="s">@${esc(p.username)}${state.contacts.has(p.id) ? ' · контакт' : ''} · ${seenText(p)}</div></div>
       ${groupMode ? `<span class="check">${picked.has(p.id) ? ic('check') : ''}</span>` : ''}
-    </button>`).join('') || '<div class="empty" style="margin-top:12vh"><div class="emptyIc">' + ic('search') + '</div><p>Никого не нашли</p><span class="muted">Проверьте ник</span></div>';
+    </button>`).join('') || empty);
   $('userList').querySelectorAll('[data-user]').forEach((b) => (b.onclick = async () => {
     const p = state.profiles.get(b.dataset.user);
     if (groupMode) {
@@ -303,7 +330,7 @@ async function searchUsers() {
       b.classList.toggle('sel'); b.querySelector('.check').innerHTML = picked.has(p.id) ? ic('check') : ''; syncNewUi(); return;
     }
     const { data: id, error } = await sb.rpc('open_direct_chat', { other: p.id });
-    if (error) return toast('Ошибка: ' + error.message);
+    if (error) return toast(errText(error));
     await loadChats(); state.history = ['sChats']; openChat(id, true);
   }));
 }
@@ -348,6 +375,7 @@ function renderMsgs(toBottom) {
   box.innerHTML = html || '<div class="empty" style="margin-top:18vh"><div class="emptyIc">' + ic('chat') + '</div><p>Напишите первое сообщение</p></div>';
   box.querySelectorAll('[data-img]').forEach(loadImg);
   box.querySelectorAll('[data-voice]').forEach(wireVoice);
+  box.querySelectorAll('[data-vnote]').forEach(wireNote);
   box.querySelectorAll('[data-file]').forEach((a) => (a.onclick = async (e) => { e.preventDefault(); const u = await fileUrl(a.dataset.file, a.dataset.name); if (u) window.open(u, '_blank'); }));
   if (toBottom || nearBottom) box.scrollTop = box.scrollHeight;
 }
@@ -364,6 +392,7 @@ function msgHtml(m, c) {
   const time = `<span class="time">${hhmm(m.created_at)}</span>`;
   let inner;
   if (m.kind === 'image') return `<div class="m media ${mine ? 'me' : ''} ${m.id === state.animId ? 'new' : ''}">${who}<img class="ph" data-img="${esc(m.file_path)}" alt="">${time}</div>`;
+  if (isNote(m)) return `<div class="m note ${mine ? 'me' : ''} ${m.id === state.animId ? 'new' : ''}">${who}<div class="vnote" data-vnote="${esc(m.file_path)}" data-dur="${m.duration || 0}"><video playsinline preload="metadata"></video><svg class="vring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48"/></svg><span class="vplay">${ic('play')}</span><span class="vdur">${fmtDur(m.duration || 0)}</span></div>${time}</div>`;
   if (m.kind === 'file') inner = `<a class="file" href="#" data-file="${esc(m.file_path)}" data-name="${esc(m.file_name)}"><span class="fi">${ic('file')}</span><span><b>${esc(m.file_name)}</b><br><span class="small" style="opacity:.75">${fmtSize(m.file_size || 0)}</span></span></a>`;
   else if (m.kind === 'voice') inner = `<div class="voice" data-voice="${esc(m.file_path)}" data-dur="${m.duration || 0}"><button class="play">${ic('play')}</button><div class="bar">${waveBars(m.id)}</div><span class="dur">${fmtDur(m.duration || 0)}</span></div>`;
   else if (m.kind === 'call') inner = `${ic(/Пропущ|Отмен/.test(m.body || '') ? 'missed' : 'phone')}<span>${esc(m.body)}</span>`;
@@ -407,7 +436,7 @@ function wireVoice(el) {
 const input = $('msgInput');
 input.oninput = () => { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 130) + 'px'; syncSendBtn(); };
 input.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey && !matchMedia('(pointer:coarse)').matches) { e.preventDefault(); sendText(); } };
-function syncSendBtn() { const has = input.value.trim().length > 0; $('sendBtn').classList.toggle('hidden', !has); $('micBtn').classList.toggle('hidden', has); }
+function syncSendBtn() { const has = input.value.trim().length > 0; $('sendBtn').classList.toggle('hidden', !has); $('micBtn').classList.toggle('hidden', has); $('noteBtn').classList.toggle('hidden', has); }
 syncSendBtn();
 $('sendBtn').onclick = sendText;
 async function sendText() {
@@ -419,7 +448,7 @@ async function sendText() {
 async function insertMsg(fields) {
   const chat_id = state.open;
   const { data, error } = await sb.from('messages').insert({ chat_id, sender_id: state.me.id, ...fields }).select().single();
-  if (error) { toast('Не отправлено: ' + error.message); return null; }
+  if (error) { toast(/privacy/.test(error.message) ? PRIVACY_TEXT(error.message) : 'Не отправлено: ' + error.message); return null; }
   addMsg(data); return data;
 }
 function addMsg(m) {
@@ -506,6 +535,306 @@ async function finishVoice() {
     await insertMsg({ kind: 'voice', file_path: path, mime: type, duration: Math.round(dur * 10) / 10, file_size: blob.size });
   } catch (e) { toast('Голосовое не отправлено: ' + (e.message || e)); }
 }
+
+// ---------- кружки (видеосообщения до минуты) ----------
+// Камера рисуется на квадратный холст 400×400, с него и пишется видео — так кружок у всех одинаковый.
+// В базе это голосовое (kind = voice) с видео-форматом: новая колонка не нужна, старые версии сыграют хотя бы звук.
+const NOTE_MAX = 60, RING = 301.6;
+let note = null;
+const isNote = (m) => m?.kind === 'voice' && /^video\//.test(m.mime || '');
+async function noteCamera(facing) {
+  return navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 640 } }, audio: false });
+}
+$('noteBtn').onclick = async () => {
+  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) return toast('Кружки не поддерживаются в этом браузере');
+  if (note) return;
+  let cam, mic;
+  try {
+    cam = await noteCamera('user');
+    mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  } catch { cam?.getTracks().forEach((t) => t.stop()); return toast('Нет доступа к камере и микрофону'); }
+  const cv = document.createElement('canvas'); cv.width = cv.height = 400;
+  const g = cv.getContext('2d'), prev = $('notePrev');
+  const n = (note = { cam, mic, facing: 'user', t0: Date.now(), chunks: [], send: false, cv });
+  prev.srcObject = cam; prev.play().catch(() => {});
+  // каждый кадр: вырезаем квадрат из середины, фронтальную камеру отражаем как в зеркале
+  const draw = () => {
+    if (note !== n) return;
+    const vw = prev.videoWidth, vh = prev.videoHeight;
+    if (vw) {
+      const s = Math.min(vw, vh);
+      g.save(); if (n.facing === 'user') { g.translate(400, 0); g.scale(-1, 1); }
+      g.drawImage(prev, (vw - s) / 2, (vh - s) / 2, s, s, 0, 0, 400, 400); g.restore();
+    }
+    n.raf = requestAnimationFrame(draw);
+  };
+  draw();
+  n.drawT = setInterval(() => { if (document.hidden) draw(); }, 40); // в фоне requestAnimationFrame спит
+  const stream = cv.captureStream(30); mic.getAudioTracks().forEach((t) => stream.addTrack(t));
+  const type = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t)) || '';
+  try { n.mr = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), videoBitsPerSecond: 900000, audioBitsPerSecond: 64000 }); }
+  catch { stopNote(false); return toast('Не удалось начать запись'); }
+  n.mr.ondataavailable = (e) => e.data.size && n.chunks.push(e.data);
+  n.mr.onstop = () => finishNote(n);
+  n.mr.start(500); sfx.recStart(); VIBRO(20);
+  $('noteWrap').classList.remove('back'); $('noteRing').style.strokeDashoffset = RING;
+  $('noteRec').classList.remove('hidden');
+  n.timer = setInterval(() => {
+    const sec = (Date.now() - n.t0) / 1000;
+    $('noteTime').textContent = fmtDur(sec);
+    $('noteRing').style.strokeDashoffset = RING * (1 - Math.min(1, sec / NOTE_MAX));
+    if (sec >= NOTE_MAX) stopNote(true);
+  }, 100);
+};
+function stopNote(send) {
+  const n = note; if (!n) return; note = null; n.send = send;
+  send ? sfx.send() : sfx.recStop();
+  clearInterval(n.timer); clearInterval(n.drawT); cancelAnimationFrame(n.raf);
+  try { if (n.mr?.state === 'recording') n.mr.stop(); } catch {}
+  n.cam.getTracks().forEach((t) => t.stop()); n.mic.getTracks().forEach((t) => t.stop());
+  $('noteRec').classList.add('hidden'); $('notePrev').srcObject = null; $('noteTime').textContent = '0:00';
+}
+$('noteCancel').onclick = () => stopNote(false);
+$('noteSend').onclick = () => stopNote(true);
+$('noteFlip').onclick = async () => {
+  const n = note; if (!n) return;
+  const facing = n.facing === 'user' ? 'environment' : 'user';
+  try {
+    const cam = await noteCamera(facing); if (note !== n) return cam.getTracks().forEach((t) => t.stop());
+    n.cam.getTracks().forEach((t) => t.stop()); n.cam = cam; n.facing = facing;
+    $('notePrev').srcObject = cam; $('notePrev').play().catch(() => {});
+    $('noteWrap').classList.toggle('back', facing !== 'user');
+  } catch { toast('Не удалось переключить камеру'); }
+};
+async function finishNote(n) {
+  if (!n.send) return;
+  const dur = (Date.now() - n.t0) / 1000; if (dur < 1) return toast('Слишком коротко');
+  const type = (n.mr.mimeType || n.chunks[0]?.type || 'video/webm').split(';')[0];
+  const blob = new Blob(n.chunks, { type });
+  toast('Отправляю кружок…', 60000);
+  try {
+    const path = await upload(blob, /mp4/.test(type) ? 'mp4' : 'webm', type);
+    await insertMsg({ kind: 'voice', file_path: path, mime: type, duration: Math.round(Math.min(dur, NOTE_MAX) * 10) / 10, file_size: blob.size });
+    $('toast').classList.add('hidden');
+  } catch (e) { toast('Кружок не отправлен: ' + (e.message || e)); }
+}
+// кружок в переписке: первый кадр сразу, по нажатию — играет со звуком, обводка показывает прогресс
+let notePlaying = null;
+async function wireNote(el) {
+  const v = el.querySelector('video'), ring = el.querySelector('.vring circle'), dur = el.querySelector('.vdur');
+  const total = +el.dataset.dur || 0;
+  fileUrl(el.dataset.vnote).then((u) => { if (u) v.src = u + '#t=0.1'; });
+  v.ontimeupdate = () => {
+    const d = isFinite(v.duration) && v.duration ? v.duration : total || 1;
+    ring.style.strokeDashoffset = RING * (1 - v.currentTime / d); dur.textContent = fmtDur(v.currentTime);
+  };
+  v.onended = () => { el.classList.remove('on'); ring.style.strokeDashoffset = RING; dur.textContent = fmtDur(total); v.currentTime = 0.1; notePlaying = null; };
+  el.onclick = () => {
+    if (!v.src) return;
+    if (notePlaying && notePlaying !== v) { notePlaying.pause(); notePlaying.closest('.vnote')?.classList.remove('on'); }
+    if (playing) { playing.audio.pause(); }
+    if (v.paused) { v.muted = false; v.play().then(() => { el.classList.add('on'); notePlaying = v; }).catch(() => toast('Не удалось воспроизвести')); }
+    else { v.pause(); el.classList.remove('on'); }
+  };
+}
+
+// ---------- контакты, конфиденциальность, устройства ----------
+// Работает после step3.sql в базе. Пока его нет — state.v3 = false и всё ведёт себя как раньше.
+const LINK = (u) => `https://kamox123.github.io/chat/#@${u}`;
+const PRIVACY_TEXT = (m) => /группы/.test(m) ? 'Этот пользователь ограничил, кто может добавлять его в группы' : 'Этот пользователь ограничил, кто может ему писать';
+const errText = (e) => (/privacy/.test(e?.message || '') ? PRIVACY_TEXT(e.message) : 'Ошибка: ' + (e?.message || e));
+async function loadV3() {
+  const { error } = await sb.from('contacts').select('contact').limit(1);
+  state.v3 = !error;
+  if (!state.v3) return;
+  const [c, b] = await Promise.all([sb.from('contacts').select('contact').eq('owner', state.me.id), sb.from('blocks').select('blocked').eq('owner', state.me.id)]);
+  state.contacts = new Set((c.data || []).map((x) => x.contact));
+  state.blocks = new Set((b.data || []).map((x) => x.blocked));
+  registerDevice();
+}
+function copyText(text, done = 'Ссылка скопирована') {
+  navigator.clipboard?.writeText(text).then(() => toast(done)).catch(() => prompt('Скопируйте:', text)) ?? prompt('Скопируйте:', text);
+}
+
+// карточка собеседника
+let uCur = null;
+function openUser(p) {
+  if (!p) return;
+  uCur = p;
+  $('uAvatar').setAttribute('style', avatarStyle(p.display_name, p.avatar_path));
+  $('uAvatar').textContent = p.avatar_path ? '' : (p.display_name?.[0] || '?').toUpperCase();
+  $('uName').textContent = p.display_name; $('uSeen').textContent = seenText(p);
+  $('uSeen').classList.toggle('on', isOnline(p));
+  $('uUser').textContent = '@' + p.username;
+  $('uBio').textContent = p.bio || ''; $('uBioRow').classList.toggle('hidden', !p.bio);
+  paintUserBtns();
+  show('sUser');
+}
+function paintUserBtns() {
+  const p = uCur; if (!p) return;
+  const isC = state.contacts.has(p.id), isB = state.blocks.has(p.id);
+  $('uContactT').textContent = isC ? 'Удалить из контактов' : 'Добавить в контакты';
+  $('uContact').querySelector('.rowIc').innerHTML = ic(isC ? 'userOk' : 'userAdd');
+  $('uBlockT').textContent = isB ? 'Разблокировать' : 'Заблокировать';
+  $('uContact').classList.toggle('hidden', !state.v3); $('uBlock').classList.toggle('hidden', !state.v3);
+}
+$('chatHead').onclick = () => { const c = state.chats.get(state.open); if (c && !c.is_group) openUser(chatPeer(c)); };
+// открыть (или создать) личный чат с человеком из карточки
+async function chatWith(p) {
+  const cur = state.chats.get(state.open);
+  if (cur && !cur.is_group && chatPeer(cur)?.id === p.id) { history.back(); return cur.id; }
+  for (const c of state.chats.values()) if (!c.is_group && chatPeer(c)?.id === p.id) { openChat(c.id, true); return c.id; }
+  const { data: id, error } = await sb.rpc('open_direct_chat', { other: p.id });
+  if (error) { toast(errText(error)); return null; }
+  await loadChats(); openChat(id, true); return id;
+}
+$('uMsg').onclick = () => uCur && chatWith(uCur);
+$('uCall').onclick = async () => { if (!uCur) return; unlockAudio(); if (await chatWith(uCur)) setTimeout(() => startCall(false), 300); };
+$('uVideo').onclick = async () => { if (!uCur) return; unlockAudio(); if (await chatWith(uCur)) setTimeout(() => startCall(true), 300); };
+$('uLink').onclick = () => uCur && copyText(LINK(uCur.username));
+$('uContact').onclick = async () => {
+  const p = uCur; if (!p || !state.v3) return;
+  const isC = state.contacts.has(p.id);
+  const { error } = isC ? await sb.from('contacts').delete().eq('owner', state.me.id).eq('contact', p.id)
+    : await sb.from('contacts').insert({ owner: state.me.id, contact: p.id });
+  if (error) return toast('Ошибка: ' + error.message);
+  isC ? state.contacts.delete(p.id) : state.contacts.add(p.id);
+  paintUserBtns(); toast(isC ? 'Удалён из контактов' : 'Добавлен в контакты');
+};
+$('uBlock').onclick = async () => {
+  const p = uCur; if (!p || !state.v3) return;
+  const isB = state.blocks.has(p.id);
+  if (!isB && !confirm(`Заблокировать ${p.display_name}? Он(а) не сможет вам писать и звонить.`)) return;
+  const { error } = isB ? await sb.from('blocks').delete().eq('owner', state.me.id).eq('blocked', p.id)
+    : await sb.from('blocks').insert({ owner: state.me.id, blocked: p.id });
+  if (error) return toast('Ошибка: ' + error.message);
+  isB ? state.blocks.delete(p.id) : state.blocks.add(p.id);
+  paintUserBtns(); toast(isB ? 'Разблокирован' : 'Заблокирован');
+};
+async function openByUsername(u) {
+  if (u === state.me.username) return toast('Это ваша ссылка');
+  let p = null;
+  if (state.v3) { const { data } = await sb.rpc('profile_by_username', { u }); p = data?.[0]; }
+  else { const { data } = await sb.from('profiles').select('*').eq('username', u).maybeSingle(); p = data; }
+  if (!p) return toast('Пользователь @' + u + ' не найден');
+  state.profiles.set(p.id, { ...(state.profiles.get(p.id) || {}), ...p });
+  openUser(state.profiles.get(p.id));
+}
+
+// экран «Конфиденциальность»
+$('pPrivacy').onclick = () => { paintPrivacy(); show('sPrivacy'); loadBlocked(); };
+function paintPrivacy() {
+  $('privOld').classList.toggle('hidden', state.v3);
+  document.querySelectorAll('[data-priv]').forEach((seg) => seg.querySelectorAll('.segBtn').forEach((b) => b.classList.toggle('on', (state.me[seg.dataset.priv] || 'everyone') === b.dataset.v)));
+  document.querySelectorAll('[data-priv-sw]').forEach((sw) => sw.classList.toggle('on', state.me[sw.dataset.privSw] !== false));
+}
+async function savePriv(field, value) {
+  if (!state.v3) return toast('Сначала нужно обновить базу (шаг 3)');
+  const old = state.me[field]; state.me[field] = value; paintPrivacy();
+  const patch = { [field]: value };
+  if (field === 'show_last_seen' && value) patch.last_seen = new Date().toISOString();
+  const { error } = await sb.from('profiles').update(patch).eq('id', state.me.id);
+  if (error) { state.me[field] = old; paintPrivacy(); return toast('Ошибка: ' + error.message); }
+  try { localStorage.setItem('kc-me', JSON.stringify(state.me)); } catch {}
+  VIBRO(10);
+}
+document.querySelectorAll('[data-priv] .segBtn').forEach((b) => (b.onclick = () => savePriv(b.closest('[data-priv]').dataset.priv, b.dataset.v)));
+document.querySelectorAll('[data-priv-sw]').forEach((sw) => (sw.onclick = () => savePriv(sw.dataset.privSw, state.me[sw.dataset.privSw] === false)));
+async function loadBlocked() {
+  const box = $('blockList');
+  if (!state.v3) { box.innerHTML = '<p class="dim small cardNote">Появится после обновления базы</p>'; return; }
+  const ids = [...state.blocks];
+  const miss = ids.filter((id) => !state.profiles.has(id));
+  if (miss.length) { const { data } = await sb.from('profiles').select('*').in('id', miss); (data || []).forEach((p) => state.profiles.set(p.id, p)); }
+  box.innerHTML = ids.map((id) => { const p = state.profiles.get(id) || { display_name: 'Пользователь', username: '…' };
+    return `<div class="rowBtn">${avatarHtml(p.display_name, p.avatar_path, 'sm')}<span class="grow">${esc(p.display_name)}<br><span class="dim small">@${esc(p.username)}</span></span><button class="chip" data-unblock="${id}">Разблокировать</button></div>`; }).join('')
+    || '<p class="dim small cardNote">Никого нет. Заблокировать можно в профиле собеседника (нажмите на имя в чате).</p>';
+  box.querySelectorAll('[data-unblock]').forEach((b) => (b.onclick = async () => {
+    const { error } = await sb.from('blocks').delete().eq('owner', state.me.id).eq('blocked', b.dataset.unblock);
+    if (error) return toast('Ошибка: ' + error.message);
+    state.blocks.delete(b.dataset.unblock); loadBlocked(); toast('Разблокирован');
+  }));
+}
+// звонки: решает принимающая сторона — по своим настройкам и чёрному списку
+const callerOk = new Map();
+async function acceptsCall(from) {
+  if (!state.v3) return true;
+  if (state.blocks.has(from)) return false;
+  const hit = callerOk.get(from); if (hit && hit.t > Date.now() - 30000) return hit.ok;
+  const { data, error } = await sb.rpc('accepts_from', { caller: from, what: 'call' });
+  const ok = error ? true : data !== false; callerOk.set(from, { ok, t: Date.now() }); return ok;
+}
+
+// экран «Устройства»
+function deviceId() {
+  try { let id = localStorage.getItem('kc-dev'); if (!id) { id = crypto.randomUUID(); localStorage.setItem('kc-dev', id); } return id; }
+  catch { return (state.devTmp ??= crypto.randomUUID()); }
+}
+function deviceName() {
+  const u = navigator.userAgent;
+  const os = /iphone/i.test(u) ? 'iPhone' : /ipad/i.test(u) ? 'iPad' : /android/i.test(u) ? 'Android' : /windows/i.test(u) ? 'Windows' : /mac os/i.test(u) ? 'Mac' : /linux/i.test(u) ? 'Linux' : 'Устройство';
+  if (window.Capacitor) return os + ' · приложение KAMOX Chat';
+  if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) return os + ' · приложение с экрана Домой';
+  const br = /YaBrowser/.test(u) ? 'Яндекс Браузер' : /Edg\//.test(u) ? 'Edge' : /OPR\//.test(u) ? 'Opera' : /Firefox|FxiOS/.test(u) ? 'Firefox' : /CriOS|Chrome/.test(u) ? 'Chrome' : /Safari/.test(u) ? 'Safari' : 'браузер';
+  return `${os} · ${br}`;
+}
+async function registerDevice() {
+  const row = () => ({ id: deviceId(), user_id: state.me.id, name: deviceName(), last_active: new Date().toISOString() });
+  let { error } = await sb.from('devices').upsert(row());
+  // этот номер устройства уже занят другим аккаунтом (входили под другим ником) — берём новый
+  if (error) { try { localStorage.removeItem('kc-dev'); } catch {} state.devTmp = null; ({ error } = await sb.from('devices').upsert(row())); }
+  state.devOk = !error;
+}
+async function deviceBeat() {
+  if (!state.v3 || !state.devOk) return;
+  const { data, error } = await sb.from('devices').update({ last_active: new Date().toISOString() }).eq('id', deviceId()).select('id');
+  // запись об устройстве удалили с другого телефона — значит, сеанс здесь завершён
+  if (!error && data && !data.length) { state.devOk = false; toast('Сеанс на этом устройстве завершён', 4000); setTimeout(() => $('pLogout').onclick(), 1500); }
+}
+$('pDevices').onclick = () => { $('devQrBox').classList.add('hidden'); show('sDevices'); paintDevices(); };
+function devRow(d, me) {
+  const pc = /Windows|Mac|Linux/.test(d.name);
+  return `<div class="rowBtn"><span class="rowIc ${me ? 'teal' : 'blue'}">${ic(pc ? 'devices' : 'install')}</span>
+    <span class="grow">${esc(d.name)}<br><span class="dim small">${me ? 'это устройство · в сети' : 'активно ' + listTime(d.last_active) + ', ' + hhmm(d.last_active)}</span></span>
+    ${me ? '' : `<button class="chip" data-dev-end="${esc(d.id)}">Завершить</button>`}</div>`;
+}
+async function paintDevices() {
+  $('devThis').innerHTML = devRow({ name: deviceName() }, true);
+  if (!state.v3) { $('devOthers').innerHTML = '<p class="dim small cardNote">Список устройств появится после обновления базы</p>'; $('devKill').classList.remove('hidden'); return; }
+  const { data } = await sb.from('devices').select('*').eq('user_id', state.me.id).order('last_active', { ascending: false });
+  const others = (data || []).filter((d) => d.id !== deviceId());
+  $('devOthers').innerHTML = others.map((d) => devRow(d, false)).join('') || '<p class="dim small cardNote">Других устройств нет</p>';
+  $('devKill').classList.toggle('hidden', !others.length);
+  $('devOthers').querySelectorAll('[data-dev-end]').forEach((b) => (b.onclick = async () => {
+    const { error } = await sb.from('devices').delete().eq('id', b.dataset.devEnd);
+    if (error) return toast('Ошибка: ' + error.message);
+    toast('Сеанс на том устройстве завершится в течение минуты'); paintDevices();
+  }));
+}
+$('devKill').onclick = async () => {
+  if (!confirm('Выйти из аккаунта на всех других устройствах?')) return;
+  const { error } = await sb.auth.signOut({ scope: 'others' });
+  if (error) return toast('Ошибка: ' + error.message);
+  if (state.v3) await sb.from('devices').delete().eq('user_id', state.me.id).neq('id', deviceId());
+  toast('Готово: на других устройствах нужно будет войти заново', 4000); paintDevices();
+};
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) return res();
+    const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s);
+  });
+}
+// «Добавить устройство»: QR-код со ссылкой, которая открывает вход с уже вписанным ником
+$('devAdd').onclick = async () => {
+  const box = $('devQrBox'); if (!box.classList.contains('hidden')) return box.classList.add('hidden');
+  try { await loadScript('qr.js'); } catch { return toast('Не удалось загрузить QR-код, проверьте интернет'); }
+  const link = `https://kamox123.github.io/chat/#login=${state.me.username}`;
+  const q = qrcode(0, 'M'); q.addData(link); q.make();
+  $('devQr').innerHTML = q.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+  $('devLink').textContent = link; box.classList.remove('hidden');
+};
+$('devCopy').onclick = () => copyText($('devLink').textContent);
+$('pLink').onclick = () => copyText(LINK(state.me.username), 'Ссылка на ваш профиль скопирована');
 
 // ---------- мгновенная доставка ----------
 function subscribe() {
@@ -606,15 +935,16 @@ $('meBtn').onclick = () => {
   const me = state.me;
   $('pAvatar').setAttribute('style', avatarStyle(me.display_name, me.avatar_path));
   $('pAvatar').textContent = me.avatar_path ? '' : (me.display_name[0] || '?').toUpperCase();
-  $('pName').value = me.display_name; $('pUser').textContent = '@' + me.username;
+  $('pName').value = me.display_name; $('pUser').textContent = '@' + me.username; $('pBio').value = me.bio || ''; $('pBioWrap').classList.toggle('hidden', !state.v3);
   paintNotifUi();
   show('sProfile');
 };
 $('pSave').onclick = async () => {
   const name = $('pName').value.trim(); if (!name) return;
-  const { error } = await sb.from('profiles').update({ display_name: name }).eq('id', state.me.id);
+  const bio = $('pBio').value.trim().slice(0, 140);
+  const { error } = await sb.from('profiles').update(state.v3 ? { display_name: name, bio } : { display_name: name }).eq('id', state.me.id);
   if (error) return toast('Ошибка: ' + error.message);
-  state.me.display_name = name; paintMe(); toast('Сохранено');
+  state.me.display_name = name; if (state.v3) state.me.bio = bio; paintMe(); toast('Сохранено');
 };
 $('pAvatar').onclick = $('pAvatarBtn').onclick = () => $('avatarInput').click();
 $('avatarInput').onchange = async () => {
@@ -629,6 +959,7 @@ $('avatarInput').onchange = async () => {
 };
 $('pLogout').onclick = async () => {
   try { const sub = await (await navigator.serviceWorker?.ready)?.pushManager?.getSubscription(); if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); } } catch {}
+  try { if (state.v3 && state.devOk) await sb.from('devices').delete().eq('id', deviceId()); } catch {}
   try { localStorage.removeItem('kc-me'); } catch {}
   await sb.auth.signOut(); location.reload();
 };
@@ -667,7 +998,8 @@ function installTip() {
 }
 
 // ---------- звонки (WebRTC, сигналы через Supabase Realtime) ----------
-const call = { pc: null, local: null, peer: null, chat: null, video: false, started: 0, incoming: null, outCh: new Map(), timer: null, ring: null, resend: null, pendingIce: [] };
+const RELAY = 'wss://vtoroy-mozg-bot.onrender.com/relay/'; // запасной канал звонков через сервер (см. startRelay)
+const call = { id: null, relay: null, rctx: null, fallback: null, pc: null, local: null, peer: null, chat: null, video: false, started: 0, incoming: null, outCh: new Map(), timer: null, ring: null, resend: null, pendingIce: [] };
 function sigChannel(uid) {
   if (!call.outCh.has(uid)) { const ch = sb.channel('call-' + uid); ch.subscribe(); call.outCh.set(uid, ch); }
   return call.outCh.get(uid);
@@ -677,13 +1009,16 @@ function listenCalls() { sb.channel('call-' + state.me.id).on('broadcast', { eve
 async function onSignal(s) {
   if (s.type === 'offer') {
     if (call.pc || (call.incoming && call.incoming.from === s.from)) { if (call.peer !== s.from) signal(s.from, { type: 'busy' }); return; } // повтор того же вызова — не мешает
-    call.incoming = s; call.peer = s.from; call.chat = s.chat; call.video = !!s.video;
+    if (!(await acceptsCall(s.from))) { signal(s.from, { type: 'decline' }); return; } // ограничил звонки или в чёрном списке
+    if (call.pc || call.incoming) return;
+    call.incoming = s; call.peer = s.from; call.chat = s.chat; call.video = !!s.video; call.id = s.id || null;
     if (!state.profiles.has(s.from)) { const { data } = await sb.from('profiles').select('*').eq('id', s.from).single(); if (data) state.profiles.set(data.id, data); }
     openCallUi('Входящий ' + (s.video ? 'видеозвонок' : 'звонок'), true);
     const ring = () => { beep(784, 0.22, 0.16); setTimeout(() => beep(988, 0.3, 0.16), 260); VIBRO([300, 200, 300]); };
     ring(); call.ring = setInterval(ring, 1800);
   } else if (s.from !== call.peer) return;
-  else if (s.type === 'answer') { clearInterval(call.resend); await call.pc.setRemoteDescription(s.sdp); flushIce(); setCallState('Соединение…'); }
+  else if (s.type === 'answer') { if (call.pc?.signalingState !== 'have-local-offer') return; clearInterval(call.resend); await call.pc.setRemoteDescription(s.sdp); flushIce(); setCallState('Соединение…'); armFallback(); }
+  else if (s.type === 'relay') { if (call.local) startRelay(); }
   else if (s.type === 'ice') { if (call.pc?.remoteDescription) call.pc.addIceCandidate(s.c).catch(() => {}); else call.pendingIce.push(s.c); }
   else if (s.type === 'hangup' || s.type === 'decline' || s.type === 'busy') {
     const missed = s.type === 'hangup' && call.incoming && !call.started;
@@ -692,7 +1027,9 @@ async function onSignal(s) {
 }
 function flushIce() { call.pendingIce.forEach((c) => call.pc.addIceCandidate(c).catch(() => {})); call.pendingIce = []; }
 function newPc() {
-  const pc = new RTCPeerConnection({ iceServers: ICE });
+  // для проверки: localStorage kc-relay=1 — прямое соединение заведомо не получится, звонок пойдёт через сервер
+  let force = false; try { force = localStorage.getItem('kc-relay') === '1'; } catch {}
+  const pc = new RTCPeerConnection(force ? { iceServers: [], iceTransportPolicy: 'relay' } : { iceServers: ICE });
   pc.onicecandidate = (e) => e.candidate && signal(call.peer, { type: 'ice', c: e.candidate.toJSON() });
   pc.ontrack = (e) => {
     const st = e.streams[0] || new MediaStream([e.track]);
@@ -701,7 +1038,8 @@ function newPc() {
   };
   pc.onconnectionstatechange = () => {
     if (pc.connectionState === 'connected' && !call.started) { call.started = Date.now(); call.timer = setInterval(() => setCallState(fmtDur((Date.now() - call.started) / 1000)), 1000); }
-    if (pc.connectionState === 'failed') endCall(true, 'Не удалось соединиться');
+    // напрямую не вышло (в России так бывает часто) — переходим на запасной канал через сервер
+    if (pc.connectionState === 'failed' && call.pc === pc) startRelay();
   };
   return pc;
 }
@@ -712,14 +1050,15 @@ async function getMedia(video) {
 async function startCall(video) {
   const c = state.chats.get(state.open); const peer = c && chatPeer(c); if (!peer || c.is_group) return;
   if (call.pc) return toast('Уже идёт звонок');
-  call.peer = peer.id; call.chat = c.id; call.video = video; call.incoming = null;
+  if (state.v3) { const { data: can } = await sb.rpc('can_reach', { target: peer.id, what: 'call' }); if (can === false) return toast('Этот пользователь ограничил, кто может ему звонить'); }
+  call.peer = peer.id; call.chat = c.id; call.video = video; call.incoming = null; call.id = crypto.randomUUID();
   const media = await getMedia(video); if (!media) return;
   call.local = media; call.pc = newPc();
   media.getTracks().forEach((t) => call.pc.addTrack(t, media));
   if (video) showSelf(media);
   openCallUi('Вызов…', false);
   const offer = await call.pc.createOffer(); await call.pc.setLocalDescription(offer);
-  const send = () => signal(peer.id, { type: 'offer', sdp: call.pc?.localDescription?.toJSON(), video, chat: c.id });
+  const send = () => signal(peer.id, { type: 'offer', sdp: call.pc?.localDescription?.toJSON(), video, chat: c.id, id: call.id });
   await send();
   // повторяем вызов, пока собеседник не ответит: если его приложение открылось по уведомлению, он всё равно получит звонок
   call.resend = setInterval(() => { if (call.pc && !call.started) send(); }, 3000);
@@ -728,7 +1067,11 @@ async function startCall(video) {
 }
 function showSelf(media) { const v = $('localVideo'); v.srcObject = media; v.play().catch(() => {}); $('sCall').classList.add('selfcam'); }
 // телефоны разрешают звук только после нажатия: «разблокируем» плеер прямо в момент нажатия кнопки
-function unlockAudio() { const a = $('remoteAudio'); a.muted = false; a.play().catch(() => {}); ac(); }
+function unlockAudio() {
+  const a = $('remoteAudio'); a.muted = false; a.play().catch(() => {}); ac();
+  // звук запасного канала: создаём заранее, пока есть нажатие (иначе телефон не даст его включить)
+  try { if (!call.rctx || call.rctx.state === 'closed') call.rctx = new AudioContext({ sampleRate: 16000 }); call.rctx.resume(); } catch {}
+}
 $('callAudio').onclick = () => { unlockAudio(); startCall(false); };
 $('callVideo').onclick = () => { unlockAudio(); startCall(true); };
 $('callFlip').onclick = async () => {
@@ -750,7 +1093,7 @@ $('callAccept').onclick = async () => {
   await call.pc.setRemoteDescription(s.sdp); flushIce();
   const ans = await call.pc.createAnswer(); await call.pc.setLocalDescription(ans);
   signal(call.peer, { type: 'answer', sdp: call.pc.localDescription.toJSON() });
-  $('callAccept').classList.add('hidden'); setCallState('Соединение…');
+  $('callAccept').classList.add('hidden'); setCallState('Соединение…'); armFallback();
 };
 function declineCall() { signal(call.peer, { type: 'decline' }); endCall(false, null); }
 $('callHang').onclick = () => {
@@ -770,12 +1113,13 @@ function openCallUi(text, incoming) {
 }
 function setCallState(t) { $('callState').textContent = t; }
 async function endCall(iRecord, text) {
-  clearInterval(call.ring); clearInterval(call.timer); clearInterval(call.resend); clearTimeout(call.noAnswer);
+  clearInterval(call.ring); clearInterval(call.timer); clearInterval(call.resend); clearTimeout(call.noAnswer); clearTimeout(call.fallback);
+  stopRelay();
   const dur = call.started ? (Date.now() - call.started) / 1000 : 0, chat = call.chat, wasCaller = !call.incoming, video = call.video;
   call.local?.getTracks().forEach((t) => t.stop());
   call.pc?.close();
-  Object.assign(call, { pc: null, local: null, started: 0, incoming: null, pendingIce: [] });
-  $('sCall').classList.add('hidden'); $('sCall').classList.remove('video', 'selfcam'); call.facing = 'user';
+  Object.assign(call, { pc: null, local: null, started: 0, incoming: null, pendingIce: [], id: null });
+  $('sCall').classList.add('hidden'); $('sCall').classList.remove('video', 'selfcam', 'relayvid'); call.facing = 'user';
   ['remoteVideo', 'localVideo', 'remoteAudio'].forEach((id) => ($(id).srcObject = null));
   $('callMute').classList.remove('off'); $('callCam').classList.remove('off');
   if (text) toast(text);
@@ -784,6 +1128,120 @@ async function endCall(iRecord, text) {
     const { data } = await sb.from('messages').insert({ chat_id: chat, sender_id: state.me.id, kind: 'call', body }).select().single();
     if (data) addMsg(data);
   }
+}
+
+// ---------- запасной канал звонка через сервер ----------
+// Прямое соединение телефонов в России часто блокируется. Если за 7 секунд оно не установилось,
+// оба собеседника подключаются к серверу на Render (он открывается без VPN), и тот пересылает звук и кадры видео.
+function armFallback() {
+  clearTimeout(call.fallback);
+  call.fallback = setTimeout(() => { if (call.local && !call.started) startRelay(); }, 7000);
+}
+// обработчики звука: запись кусками по 20 мс (16 кГц) и проигрывание с небольшим запасом против рывков
+const WORKLET = `
+class Cap extends AudioWorkletProcessor {
+  constructor() { super(); this.b = new Int16Array(320); this.n = 0; }
+  process(inp) { const ch = inp[0] && inp[0][0]; if (ch) for (let k = 0; k < ch.length; k++) {
+    const v = Math.max(-1, Math.min(1, ch[k])); this.b[this.n++] = v * 32767;
+    if (this.n === 320) { this.port.postMessage(this.b.slice(0)); this.n = 0; } } return true; }
+}
+class Play extends AudioWorkletProcessor {
+  constructor() { super(); this.q = []; this.cur = null; this.pos = 0; this.size = 0; this.on = false;
+    this.port.onmessage = (e) => { this.q.push(e.data); this.size += e.data.length;
+      if (this.size > 9600) while (this.size > 3200) this.size -= this.q.shift().length; }; }
+  process(_, out) { const o = out[0][0];
+    if (!this.on) { if (this.size < 1600) { o.fill(0); return true; } this.on = true; }
+    for (let k = 0; k < o.length; k++) {
+      if (!this.cur || this.pos >= this.cur.length) { this.cur = this.q.shift(); this.pos = 0;
+        if (!this.cur) { o.fill(0, k); this.on = false; return true; } this.size -= this.cur.length; }
+      o[k] = this.cur[this.pos++] / 32768; }
+    return true; }
+}
+registerProcessor('kc-cap', Cap); registerProcessor('kc-play', Play);`;
+async function startRelay() {
+  if (call.relay || !call.local || !call.id) return;
+  clearTimeout(call.fallback);
+  const r = (call.relay = { ws: null, nodes: [], vt: null, busy: false, loop: null });
+  signal(call.peer, { type: 'relay' });
+  if (!call.started) setCallState('Соединение через сервер…');
+  if (call.pc) { call.pc.onconnectionstatechange = null; call.pc.close(); }
+  try {
+    let ctx = call.rctx;
+    if (!ctx || ctx.state === 'closed') ctx = call.rctx = new AudioContext({ sampleRate: 16000 });
+    ctx.resume().catch(() => {});
+    if (!ctx.kcReady) { const u = URL.createObjectURL(new Blob([WORKLET], { type: 'text/javascript' })); await ctx.audioWorklet.addModule(u); ctx.kcReady = true; }
+    if (call.relay !== r) return;
+    const ws = (r.ws = new WebSocket(RELAY + call.id)); ws.binaryType = 'arraybuffer';
+    const cap = new AudioWorkletNode(ctx, 'kc-cap'), play = new AudioWorkletNode(ctx, 'kc-play');
+    const src = ctx.createMediaStreamSource(call.local), mute = ctx.createGain(); mute.gain.value = 0;
+    src.connect(cap).connect(mute).connect(ctx.destination); // «заглушка»: запись идёт, но себя не слышно
+    r.nodes = [src, cap, play, mute];
+    playOut(ctx, play, r);
+    cap.port.onmessage = (e) => {
+      if (ws.readyState !== 1 || ws.bufferedAmount > 64000) return;
+      const pkt = new Uint8Array(1 + e.data.byteLength); pkt[0] = 1; pkt.set(new Uint8Array(e.data.buffer), 1); ws.send(pkt);
+    };
+    ws.onmessage = (e) => {
+      if (typeof e.data === 'string') {
+        if (e.data === 'peer') relayLive();
+        else if (e.data === 'bye' && call.relay === r) setCallState('Собеседник переподключается…');
+        return;
+      }
+      const d = new Uint8Array(e.data);
+      if (d[0] === 1) { const pcm = new Int16Array(d.slice(1).buffer); play.port.postMessage(pcm, [pcm.buffer]); }
+      else if (d[0] === 2) drawRemote(d.subarray(1));
+    };
+    ws.onclose = () => { if (call.relay === r) endCall(true, call.started ? 'Связь прервалась' : 'Не удалось соединиться'); };
+    if (call.video) r.vt = setInterval(() => sendFrame(ws, r), 140);
+  } catch { if (call.relay === r) endCall(true, 'Не удалось соединиться'); }
+}
+// звук собеседника идёт через «петлю» WebRTC внутри телефона — так работает подавление эха; не вышло — напрямую
+async function playOut(ctx, play, r) {
+  const direct = () => play.connect(ctx.destination);
+  if (IS_IOS) return direct();
+  try {
+    const dest = ctx.createMediaStreamDestination(); play.connect(dest);
+    const a = new RTCPeerConnection(), b = new RTCPeerConnection(); r.loop = [a, b];
+    a.onicecandidate = (e) => e.candidate && b.addIceCandidate(e.candidate).catch(() => {});
+    b.onicecandidate = (e) => e.candidate && a.addIceCandidate(e.candidate).catch(() => {});
+    b.ontrack = (e) => { const el = $('remoteAudio'); el.srcObject = new MediaStream([e.track]); el.play().catch(() => {}); };
+    dest.stream.getTracks().forEach((t) => a.addTrack(t, dest.stream));
+    const o = await a.createOffer(); await a.setLocalDescription(o); await b.setRemoteDescription(o);
+    const an = await b.createAnswer(); await b.setLocalDescription(an); await a.setRemoteDescription(an);
+    setTimeout(() => { if (call.relay === r && a.connectionState !== 'connected') { a.close(); b.close(); r.loop = null; play.disconnect(); direct(); } }, 3000);
+  } catch { try { play.disconnect(); } catch {} direct(); }
+}
+function relayLive() {
+  if (!call.started) { call.started = Date.now(); call.timer = setInterval(() => setCallState(fmtDur((Date.now() - call.started) / 1000)), 1000); }
+  setCallState(fmtDur((Date.now() - call.started) / 1000));
+}
+const vCanvas = document.createElement('canvas');
+function sendFrame(ws, r) {
+  const v = $('localVideo'), t = call.local?.getVideoTracks()[0];
+  if (r.busy || ws.readyState !== 1 || ws.bufferedAmount > 120000 || !t?.enabled || !v.videoWidth) return;
+  const k = Math.min(1, 400 / Math.max(v.videoWidth, v.videoHeight));
+  vCanvas.width = Math.round(v.videoWidth * k); vCanvas.height = Math.round(v.videoHeight * k);
+  vCanvas.getContext('2d').drawImage(v, 0, 0, vCanvas.width, vCanvas.height);
+  r.busy = true;
+  vCanvas.toBlob(async (b) => {
+    r.busy = false; if (!b || ws.readyState !== 1) return;
+    const buf = new Uint8Array(await b.arrayBuffer()), pkt = new Uint8Array(buf.length + 1); pkt[0] = 2; pkt.set(buf, 1); ws.send(pkt);
+  }, 'image/jpeg', 0.55);
+}
+async function drawRemote(bytes) {
+  try {
+    const img = await createImageBitmap(new Blob([bytes], { type: 'image/jpeg' })), cv = $('remoteCanvas');
+    if (cv.width !== img.width || cv.height !== img.height) { cv.width = img.width; cv.height = img.height; }
+    cv.getContext('2d').drawImage(img, 0, 0); img.close?.();
+    $('sCall').classList.add('video', 'relayvid');
+  } catch {}
+}
+function stopRelay() {
+  const r = call.relay; if (!r) return; call.relay = null;
+  clearInterval(r.vt);
+  try { if (r.ws) { r.ws.onclose = null; r.ws.close(); } } catch {}
+  r.nodes.forEach((n) => { try { n.disconnect(); } catch {} });
+  r.loop?.forEach((pc) => pc.close());
 }
 
 // ---------- старт ----------
@@ -802,6 +1260,11 @@ $('wApk').addEventListener('click', () => $('wSteps').classList.remove('hidden')
 $('wWeb').onclick = () => { try { localStorage.setItem('kc-web', '1'); } catch {} show('sAuth', false); };
 if (!IS_APP) { $('toWelcome').classList.remove('hidden'); $('apkLink').classList.add('hidden'); }
 $('toWelcome').onclick = () => show('sWelcome', false);
+// ссылки: #@ник — открыть профиль человека, #login=ник — вход на новом устройстве с уже вписанным ником
+const HASH = decodeURIComponent(location.hash.slice(1));
+const linkUser = /^@([a-z0-9_]{3,20})$/.exec(HASH)?.[1], linkLogin = /^login=([a-z0-9_]{3,20})$/.exec(HASH)?.[1];
+if (linkUser || linkLogin) history.replaceState(null, '', location.pathname + location.search);
+state.pendingUser = linkUser || null;
 const firstScreen = () => { let web = false; try { web = !!localStorage.getItem('kc-web'); } catch {} return IS_APP || web ? 'sAuth' : 'sWelcome'; };
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.chat && state.chats.has(e.data.chat)) openChat(e.data.chat); });
@@ -810,7 +1273,10 @@ const openFromPush = new URLSearchParams(location.search).get('chat');
 document.getElementById('appVer').textContent = APP_VER;
 applyPrefs();
 sb.auth.getSession().then(async ({ data }) => {
-  if (!data.session) return show(firstScreen(), false);
+  if (!data.session) {
+    if (linkLogin) { setAuthMode('login'); $('aUser').value = linkLogin; show('sAuth', false); return setTimeout(() => $('aPass').focus(), 300); }
+    return show(firstScreen(), false);
+  }
   await start(data.session);
   if (openFromPush && state.chats.has(openFromPush)) openChat(openFromPush);
 });

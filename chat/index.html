@@ -109,6 +109,7 @@
     <input type="file" id="fileInput" hidden>
     <div class="inputWrap glass"><textarea id="msgInput" rows="1" placeholder="Сообщение"></textarea></div>
     <button class="icon send" id="sendBtn" aria-label="Отправить"><i data-ic="send"></i></button>
+    <button class="icon glass" id="noteBtn" aria-label="Кружок"><i data-ic="circle"></i></button>
     <button class="icon glass" id="micBtn" aria-label="Голосовое"><i data-ic="mic"></i></button>
   </div>
   <div class="composer hidden" id="recBar">
@@ -133,6 +134,8 @@
     <div class="card glass">
       <label class="fieldLabel">Имя<input id="pName" class="field" maxlength="40"></label>
       <p class="muted small" id="pUser"></p>
+      <label class="fieldLabel" id="pBioWrap">О себе<input id="pBio" class="field" maxlength="140" placeholder="Пара слов о себе"></label>
+      <button class="rowBtn" id="pLink"><span class="rowIc blue"><i data-ic="link"></i></span><span class="grow">Моя ссылка<br><span class="dim small">Отправьте другу — он сразу найдёт вас</span></span><i data-ic="next" class="dim"></i></button>
       <button class="btn" id="pSave">Сохранить</button>
     </div>
 
@@ -153,6 +156,12 @@
       <div class="seg mini" id="fontSeg"><button class="segBtn" data-font="s">Мелкий</button><button class="segBtn" data-font="m">Обычный</button><button class="segBtn" data-font="l">Крупный</button></div>
     </div>
 
+    <p class="secTitle">Конфиденциальность</p>
+    <div class="card glass">
+      <button class="rowBtn" id="pPrivacy"><span class="rowIc teal"><i data-ic="shield"></i></span><span class="grow">Конфиденциальность<br><span class="dim small">Кто может писать, звонить, видеть «в сети»</span></span><i data-ic="next" class="dim"></i></button>
+      <button class="rowBtn" id="pDevices"><span class="rowIc blue"><i data-ic="devices"></i></span><span class="grow">Устройства<br><span class="dim small">Вход на другом устройстве, завершение сеансов</span></span><i data-ic="next" class="dim"></i></button>
+    </div>
+
     <p class="secTitle">Аккаунт</p>
     <div class="card glass">
       <button class="rowBtn" id="pPass"><span class="rowIc violet"><i data-ic="lock"></i></span><span class="grow">Сменить пароль</span><i data-ic="next" class="dim"></i></button>
@@ -166,9 +175,91 @@
   </div>
 </section>
 
+<!-- Профиль собеседника -->
+<section id="sUser" class="screen hidden">
+  <header class="top glass">
+    <button class="icon" data-back aria-label="Назад"><i data-ic="back"></i></button>
+    <h2>Профиль</h2><span class="icon"></span>
+  </header>
+  <div class="pad center settings">
+    <div class="bigAvatar" id="uAvatar"></div>
+    <div class="uHead"><h3 id="uName"></h3><p class="muted" id="uSeen"></p></div>
+    <div class="uActions">
+      <button class="uAct glass" id="uMsg"><i data-ic="chat"></i><span>Написать</span></button>
+      <button class="uAct glass" id="uCall"><i data-ic="phone"></i><span>Звонок</span></button>
+      <button class="uAct glass" id="uVideo"><i data-ic="video"></i><span>Видео</span></button>
+    </div>
+    <div class="card glass">
+      <div class="infoRow"><span class="dim small">Ник</span><span id="uUser"></span></div>
+      <div class="infoRow hidden" id="uBioRow"><span class="dim small">О себе</span><span id="uBio"></span></div>
+    </div>
+    <div class="card glass">
+      <button class="rowBtn" id="uContact"><span class="rowIc teal"><i data-ic="userAdd"></i></span><span class="grow" id="uContactT">Добавить в контакты</span></button>
+      <button class="rowBtn" id="uLink"><span class="rowIc blue"><i data-ic="link"></i></span><span class="grow">Скопировать ссылку на профиль</span></button>
+      <button class="rowBtn danger" id="uBlock"><span class="rowIc red"><i data-ic="block"></i></span><span class="grow" id="uBlockT">Заблокировать</span></button>
+    </div>
+  </div>
+</section>
+
+<!-- Конфиденциальность -->
+<section id="sPrivacy" class="screen hidden">
+  <header class="top glass">
+    <button class="icon" data-back aria-label="Назад"><i data-ic="back"></i></button>
+    <h2>Конфиденциальность</h2><span class="icon"></span>
+  </header>
+  <div class="pad center settings">
+    <p class="tip glass hidden" id="privOld">Эти настройки заработают после обновления базы данных (шаг 3).</p>
+    <p class="secTitle">Кто может мне писать</p>
+    <div class="card glass">
+      <div class="seg mini" data-priv="allow_messages"><button class="segBtn" data-v="everyone">Все</button><button class="segBtn" data-v="contacts">Контакты</button><button class="segBtn" data-v="nobody">Никто</button></div>
+      <p class="dim small cardNote">Тем, кому вы написали сами, ответить можно всегда.</p>
+    </div>
+    <p class="secTitle">Кто может мне звонить</p>
+    <div class="card glass">
+      <div class="seg mini" data-priv="allow_calls"><button class="segBtn" data-v="everyone">Все</button><button class="segBtn" data-v="contacts">Контакты</button><button class="segBtn" data-v="nobody">Никто</button></div>
+    </div>
+    <p class="secTitle">Кто может добавлять в группы</p>
+    <div class="card glass">
+      <div class="seg mini" data-priv="allow_groups"><button class="segBtn" data-v="everyone">Все</button><button class="segBtn" data-v="contacts">Контакты</button><button class="segBtn" data-v="nobody">Никто</button></div>
+    </div>
+    <p class="secTitle">Видимость</p>
+    <div class="card glass">
+      <div class="rowBtn"><span class="rowIc teal"><i data-ic="eye"></i></span><span class="grow">Показывать, когда я в сети<br><span class="dim small">Если выключить — у вас будет «был(а) недавно»</span></span><button class="switch" data-priv-sw="show_last_seen" aria-label="Показывать время в сети"></button></div>
+      <div class="rowBtn"><span class="rowIc blue"><i data-ic="search"></i></span><span class="grow">Искать меня по началу ника<br><span class="dim small">Если выключить — найдут только по нику целиком</span></span><button class="switch" data-priv-sw="searchable" aria-label="Поиск по началу ника"></button></div>
+    </div>
+    <p class="secTitle">Чёрный список</p>
+    <div class="card glass" id="blockList"></div>
+  </div>
+</section>
+
+<!-- Устройства -->
+<section id="sDevices" class="screen hidden">
+  <header class="top glass">
+    <button class="icon" data-back aria-label="Назад"><i data-ic="back"></i></button>
+    <h2>Устройства</h2><span class="icon"></span>
+  </header>
+  <div class="pad center settings">
+    <div class="card glass">
+      <button class="btn" id="devAdd"><i data-ic="qr"></i>Добавить устройство</button>
+      <div class="qrBox hidden" id="devQrBox">
+        <div class="qr" id="devQr"></div>
+        <p class="small muted">Наведите камеру другого телефона на этот код — откроется KAMOX Chat с уже вписанным ником. Останется ввести пароль.</p>
+        <p class="small dim devLink" id="devLink"></p>
+        <button class="chip" id="devCopy"><i data-ic="link"></i>Скопировать ссылку</button>
+      </div>
+    </div>
+    <p class="secTitle">Это устройство</p>
+    <div class="card glass" id="devThis"></div>
+    <p class="secTitle">Другие устройства</p>
+    <div class="card glass" id="devOthers"></div>
+    <button class="btn ghost dangerBtn" id="devKill"><i data-ic="logout"></i>Завершить все другие сеансы</button>
+  </div>
+</section>
+
 <!-- Звонок -->
 <section id="sCall" class="call hidden">
   <video id="remoteVideo" autoplay playsinline muted></video>
+  <canvas id="remoteCanvas"></canvas>
   <video id="localVideo" autoplay playsinline muted></video>
   <audio id="remoteAudio" autoplay playsinline></audio>
   <div class="callInfo">
@@ -184,6 +275,18 @@
     <button class="round hang" id="callHang" aria-label="Завершить"><i data-ic="hangup"></i></button>
   </div>
 </section>
+
+<!-- Запись кружка -->
+<div id="noteRec" class="noteRec hidden">
+  <div class="noteWrap" id="noteWrap"><video id="notePrev" autoplay playsinline muted></video>
+    <svg class="noteRing" viewBox="0 0 100 100"><circle id="noteRing" cx="50" cy="50" r="48"/></svg></div>
+  <p class="noteTime"><span class="recDot"></span><span id="noteTime">0:00</span></p>
+  <div class="noteBtns">
+    <button class="round glass" id="noteCancel" aria-label="Отменить"><i data-ic="trash"></i></button>
+    <button class="round glass" id="noteFlip" aria-label="Сменить камеру"><i data-ic="flip"></i></button>
+    <button class="round sendRound" id="noteSend" aria-label="Отправить"><i data-ic="send"></i></button>
+  </div>
+</div>
 
 <div id="viewer" class="viewer hidden"><img id="viewerImg" alt=""></div>
 <div id="toast" class="toast glass hidden"></div>
