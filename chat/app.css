@@ -305,3 +305,5 @@ html[data-font="s"] .m { font-size: 14.5px; } html[data-font="l"] .m { font-size
 #privOld { width: min(440px, 100%); }
 #pBioWrap { margin-top: 4px; }
 .card .rowBtn.hidden + .rowBtn { border-top: 0; border-radius: 16px; }
+#netLocal { flex: none; padding: 6px 12px; font-size: 13px; }
+.netBar:has(#netLocal:not(.hidden)) { white-space: normal; width: max-content; max-width: calc(100% - 24px); }

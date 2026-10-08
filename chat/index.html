@@ -31,7 +31,7 @@
     </ul>
     <div id="wAndroid">
       <a class="btn" id="wApk" href="kamox-chat.apk" download="kamox-chat.apk" type="application/vnd.android.package-archive"><i data-ic="download"></i>Скачать для Android</a>
-      <p class="muted small">Версия 1.5 · 3 МБ · Android 7 и новее</p>
+      <p class="muted small">Версия 1.8 · 3 МБ · Android 7 и новее</p>
       <div class="tip glass hidden" id="wInApp"><span class="grow">Вы открыли сайт внутри другого приложения — оно может не дать скачать файл. Откройте в Chrome:</span><a class="chip on" id="wChrome" href="#">Открыть</a></div>
       <ol class="steps hidden" id="wSteps">
         <li>Откройте скачанный файл <b>kamox-chat.apk</b> (шторка уведомлений или «Загрузки»)</li>
@@ -159,6 +159,7 @@
     <p class="secTitle">Конфиденциальность</p>
     <div class="card glass">
       <button class="rowBtn" id="pPrivacy"><span class="rowIc teal"><i data-ic="shield"></i></span><span class="grow">Конфиденциальность<br><span class="dim small">Кто может писать, звонить, видеть «в сети»</span></span><i data-ic="next" class="dim"></i></button>
+      <button class="rowBtn hidden" id="pLocal"><span class="rowIc orange"><i data-ic="wifi"></i></span><span class="grow">Чат без интернета<br><span class="dim small">Общение рядом через Wi-Fi или точку доступа</span></span><i data-ic="next" class="dim"></i></button>
       <button class="rowBtn" id="pDevices"><span class="rowIc blue"><i data-ic="devices"></i></span><span class="grow">Устройства<br><span class="dim small">Вход на другом устройстве, завершение сеансов</span></span><i data-ic="next" class="dim"></i></button>
     </div>
 
@@ -290,7 +291,7 @@
 
 <div id="viewer" class="viewer hidden"><img id="viewerImg" alt=""></div>
 <div id="toast" class="toast glass hidden"></div>
-<div id="netBar" class="netBar glass hidden"><span class="spin"></span><span id="netText">Нет связи с сервером. Переподключаюсь…</span></div>
+<div id="netBar" class="netBar glass hidden"><span class="spin"></span><span id="netText">Нет связи с сервером. Переподключаюсь…</span><button class="chip on hidden" id="netLocal">Чат без интернета</button></div>
 
 <script src="supabase.js"></script>
 <script src="app.js"></script>

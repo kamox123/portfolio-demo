@@ -41,6 +41,7 @@ const P = {
   missed: '<path d="M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/><path d="M16 3l5 5M21 3l-5 5"/>',
   install: '<rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M12 7v7M9 11l3 3 3-3M10 18.5h4"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  wifi: '<path d="M5 12.5a10 10 0 0 1 14 0M8 15.5a6 6 0 0 1 8 0M2 9.3a14.5 14.5 0 0 1 20 0"/><circle cx="12" cy="19" r="1" fill="currentColor"/>',
   shield: '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><path d="M8.8 12l2.2 2.2 4.2-4.4"/>',
   devices: '<rect x="2.5" y="5" width="13" height="10" rx="2"/><path d="M5.5 19h7"/><rect x="16.5" y="8.5" width="5.5" height="11" rx="1.6"/>',
   link: '<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/>',
@@ -61,7 +62,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '1.7';
+const APP_VER = '1.8';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -834,6 +835,11 @@ $('devAdd').onclick = async () => {
   $('devLink').textContent = link; box.classList.remove('hidden');
 };
 $('devCopy').onclick = () => copyText($('devLink').textContent);
+// школьный чат без интернета — есть только в приложении для Android (версия 1.8 и новее)
+const LOCAL_CHAT = !!window.KamoxLocal;
+function openLocalChat() { location.href = 'https://localhost/offline.html#name=' + encodeURIComponent(state.me?.display_name || ''); }
+if (LOCAL_CHAT) { $('pLocal').classList.remove('hidden'); $('netLocal').classList.remove('hidden'); }
+$('pLocal').onclick = $('netLocal').onclick = openLocalChat;
 $('pLink').onclick = () => copyText(LINK(state.me.username), 'Ссылка на ваш профиль скопирована');
 
 // ---------- мгновенная доставка ----------
