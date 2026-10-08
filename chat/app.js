@@ -41,6 +41,7 @@ const P = {
   missed: '<path d="M5 4h3l2 5-2.5 1.5a11 11 0 0 0 6 6L15 14l5 2v3a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/><path d="M16 3l5 5M21 3l-5 5"/>',
   install: '<rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M12 7v7M9 11l3 3 3-3M10 18.5h4"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
+  refresh: '<path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v4.5h-4.5"/>',
   wifi: '<path d="M5 12.5a10 10 0 0 1 14 0M8 15.5a6 6 0 0 1 8 0M2 9.3a14.5 14.5 0 0 1 20 0"/><circle cx="12" cy="19" r="1" fill="currentColor"/>',
   shield: '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><path d="M8.8 12l2.2 2.2 4.2-4.4"/>',
   devices: '<rect x="2.5" y="5" width="13" height="10" rx="2"/><path d="M5.5 19h7"/><rect x="16.5" y="8.5" width="5.5" height="11" rx="1.6"/>',
@@ -62,7 +63,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '1.8';
+const APP_VER = '1.9';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -449,7 +450,7 @@ async function sendText() {
 async function insertMsg(fields) {
   const chat_id = state.open;
   const { data, error } = await sb.from('messages').insert({ chat_id, sender_id: state.me.id, ...fields }).select().single();
-  if (error) { toast(/privacy/.test(error.message) ? PRIVACY_TEXT(error.message) : 'Не отправлено: ' + error.message); return null; }
+  if (error) { toast(/banned/.test(error.message) ? BANNED_TEXT : /privacy/.test(error.message) ? PRIVACY_TEXT(error.message) : 'Не отправлено: ' + error.message); return null; }
   addMsg(data); return data;
 }
 function addMsg(m) {
@@ -642,6 +643,7 @@ async function wireNote(el) {
 // ---------- контакты, конфиденциальность, устройства ----------
 // Работает после step3.sql в базе. Пока его нет — state.v3 = false и всё ведёт себя как раньше.
 const LINK = (u) => `https://kamox123.github.io/chat/#@${u}`;
+const BANNED_TEXT = 'Ваш аккаунт заблокирован администратором';
 const PRIVACY_TEXT = (m) => /группы/.test(m) ? 'Этот пользователь ограничил, кто может добавлять его в группы' : 'Этот пользователь ограничил, кто может ему писать';
 const errText = (e) => (/privacy/.test(e?.message || '') ? PRIVACY_TEXT(e.message) : 'Ошибка: ' + (e?.message || e));
 async function loadV3() {
@@ -652,6 +654,7 @@ async function loadV3() {
   state.contacts = new Set((c.data || []).map((x) => x.contact));
   state.blocks = new Set((b.data || []).map((x) => x.blocked));
   registerDevice();
+  checkAdmin();
 }
 function copyText(text, done = 'Ссылка скопирована') {
   navigator.clipboard?.writeText(text).then(() => toast(done)).catch(() => prompt('Скопируйте:', text)) ?? prompt('Скопируйте:', text);
@@ -841,6 +844,62 @@ function openLocalChat() { location.href = 'https://localhost/offline.html#name=
 if (LOCAL_CHAT) { $('pLocal').classList.remove('hidden'); $('netLocal').classList.remove('hidden'); }
 $('pLocal').onclick = $('netLocal').onclick = openLocalChat;
 $('pLink').onclick = () => copyText(LINK(state.me.username), 'Ссылка на ваш профиль скопирована');
+
+// ---------- админ-панель (только служебные сведения: кто, когда, какие группы; тексты сообщений база не отдаёт) ----------
+let adminTab = 'users', adminData = { users: [], groups: [] };
+async function checkAdmin() {
+  if (!state.v3) return;
+  const { data } = await sb.rpc('is_admin');
+  state.admin = data === true;
+  $('pAdmin').classList.toggle('hidden', !state.admin);
+}
+$('pAdmin').onclick = () => { show('sAdmin'); loadAdmin(); };
+async function loadAdmin() {
+  $('admList').innerHTML = '<p class="dim small cardNote">Загружаю…</p>';
+  const [st, us, gr] = await Promise.all([sb.rpc('admin_stats'), sb.rpc('admin_users'), sb.rpc('admin_groups')]);
+  if (st.error) { $('admList').innerHTML = `<p class="dim small cardNote">${esc(st.error.message)}</p>`; return; }
+  const s = st.data;
+  const tiles = [['Пользователей', s.users], ['Сейчас в сети', s.online], ['Новых сегодня', s.new_today], ['Новых за неделю', s.new_week],
+    ['Групп', s.groups], ['Личных чатов', s.direct], ['Сообщений сегодня', s.messages_today], ['Сообщений всего', s.messages]];
+  $('admStats').innerHTML = tiles.map(([t, v]) => `<div class="admTile glass"><b>${v}</b><span>${t}</span></div>`).join('');
+  adminData = { users: us.data || [], groups: gr.data || [] };
+  paintAdmin();
+}
+const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+function paintAdmin() {
+  const q = $('admSearch').value.trim().toLowerCase();
+  document.querySelectorAll('#admTabs .segBtn').forEach((b) => b.classList.toggle('on', b.dataset.tab === adminTab));
+  if (adminTab === 'users') {
+    const list = adminData.users.filter((u) => !q || u.username.includes(q) || u.display_name.toLowerCase().includes(q));
+    $('admList').innerHTML = list.map((u) => `
+      <div class="admRow glass">
+        ${avatarHtml(u.display_name, u.avatar_path, '', isOnline(u))}
+        <div class="mid"><div class="t">${esc(u.display_name)}${u.is_admin ? ' <span class="admTag">админ</span>' : ''}${u.banned ? ' <span class="admTag red">заблокирован</span>' : ''}</div>
+          <div class="s">@${esc(u.username)} · с ${fmtDate(u.created_at)}</div>
+          <div class="s">${u.last_seen ? seenText(u) : 'скрывает время в сети'} · чатов ${u.chats}, групп ${u.groups}, сообщений ${u.messages}</div></div>
+        ${u.is_admin || u.id === state.me.id ? '' : `<button class="chip ${u.banned ? 'on' : ''}" data-ban="${u.id}" data-to="${u.banned ? '0' : '1'}">${u.banned ? 'Разблокировать' : 'Заблокировать'}</button>`}
+      </div>`).join('') || '<p class="dim small cardNote">Никого не нашли</p>';
+    $('admList').querySelectorAll('[data-ban]').forEach((b) => (b.onclick = async () => {
+      const u = adminData.users.find((x) => x.id === b.dataset.ban), ban = b.dataset.to === '1';
+      if (ban && !confirm(`Заблокировать @${u.username}? Он(а) не сможет отправлять сообщения.`)) return;
+      const { error } = await sb.rpc('admin_set_ban', { target: u.id, ban });
+      if (error) return toast('Ошибка: ' + error.message);
+      u.banned = ban; paintAdmin(); toast(ban ? 'Заблокирован' : 'Разблокирован');
+    }));
+  } else {
+    const list = adminData.groups.filter((g) => !q || g.title.toLowerCase().includes(q) || g.member_names.join(' ').toLowerCase().includes(q));
+    $('admList').innerHTML = list.map((g) => `
+      <div class="admRow glass">
+        ${avatarHtml(g.title, g.avatar_path)}
+        <div class="mid"><div class="t">${esc(g.title)}</div>
+          <div class="s">создал(а) ${esc(g.creator || '—')} · ${fmtDate(g.created_at)} · сообщений ${g.messages}</div>
+          <div class="s wrap">Участники (${g.members}): ${esc(g.member_names.join(', '))}</div></div>
+      </div>`).join('') || '<p class="dim small cardNote">Групп нет</p>';
+  }
+}
+document.querySelectorAll('#admTabs .segBtn').forEach((b) => (b.onclick = () => { adminTab = b.dataset.tab; paintAdmin(); }));
+$('admSearch').oninput = paintAdmin;
+$('admReload').onclick = loadAdmin;
 
 // ---------- мгновенная доставка ----------
 function subscribe() {

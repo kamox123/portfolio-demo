@@ -307,3 +307,17 @@ html[data-font="s"] .m { font-size: 14.5px; } html[data-font="l"] .m { font-size
 .card .rowBtn.hidden + .rowBtn { border-top: 0; border-radius: 16px; }
 #netLocal { flex: none; padding: 6px 12px; font-size: 13px; }
 .netBar:has(#netLocal:not(.hidden)) { white-space: normal; width: max-content; max-width: calc(100% - 24px); }
+
+/* админ-панель */
+.admin { padding: 6px 12px calc(20px + var(--safeB)); display: flex; flex-direction: column; gap: 10px; }
+.admStats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.admTile { border-radius: 18px; padding: 12px 14px; display: flex; flex-direction: column; }
+.admTile b { font-size: 24px; letter-spacing: -.4px; } .admTile span { font-size: 13px; color: var(--muted); }
+.admRow { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 18px; margin-bottom: 8px; }
+.admRow .mid { flex: 1 1 220px; min-width: 0; } .admRow .t { font-weight: 700; }
+.admRow .s { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.admRow .s.wrap { white-space: normal; }
+.admRow .chip { flex: none; font-size: 13px; padding: 7px 11px; margin-left: 58px; }
+.admTag { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: rgba(123, 97, 255, .35); vertical-align: 2px; }
+.admTag.red { background: rgba(255, 91, 110, .3); }
+@media (min-width: 560px) { .admStats { grid-template-columns: repeat(4, 1fr); } }

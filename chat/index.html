@@ -159,6 +159,7 @@
     <p class="secTitle">Конфиденциальность</p>
     <div class="card glass">
       <button class="rowBtn" id="pPrivacy"><span class="rowIc teal"><i data-ic="shield"></i></span><span class="grow">Конфиденциальность<br><span class="dim small">Кто может писать, звонить, видеть «в сети»</span></span><i data-ic="next" class="dim"></i></button>
+      <button class="rowBtn hidden" id="pAdmin"><span class="rowIc red"><i data-ic="shield"></i></span><span class="grow">Админ-панель<br><span class="dim small">Пользователи, группы, статистика</span></span><i data-ic="next" class="dim"></i></button>
       <button class="rowBtn hidden" id="pLocal"><span class="rowIc orange"><i data-ic="wifi"></i></span><span class="grow">Чат без интернета<br><span class="dim small">Общение рядом через Wi-Fi или точку доступа</span></span><i data-ic="next" class="dim"></i></button>
       <button class="rowBtn" id="pDevices"><span class="rowIc blue"><i data-ic="devices"></i></span><span class="grow">Устройства<br><span class="dim small">Вход на другом устройстве, завершение сеансов</span></span><i data-ic="next" class="dim"></i></button>
     </div>
@@ -254,6 +255,22 @@
     <p class="secTitle">Другие устройства</p>
     <div class="card glass" id="devOthers"></div>
     <button class="btn ghost dangerBtn" id="devKill"><i data-ic="logout"></i>Завершить все другие сеансы</button>
+  </div>
+</section>
+
+<!-- Админ-панель -->
+<section id="sAdmin" class="screen hidden">
+  <header class="top glass">
+    <button class="icon" data-back aria-label="Назад"><i data-ic="back"></i></button>
+    <h2>Админ-панель</h2>
+    <button class="icon" id="admReload" aria-label="Обновить"><i data-ic="refresh"></i></button>
+  </header>
+  <div class="list admin">
+    <div class="admStats" id="admStats"></div>
+    <div class="seg mini" id="admTabs"><button class="segBtn on" data-tab="users">Пользователи</button><button class="segBtn" data-tab="groups">Группы</button></div>
+    <label class="search glass"><i data-ic="search"></i><input id="admSearch" placeholder="Поиск по нику, имени, названию" autocapitalize="none" spellcheck="false"></label>
+    <p class="dim small cardNote">Тексты сообщений, фото и файлы здесь не показываются — только служебные сведения.</p>
+    <div id="admList"></div>
   </div>
 </section>
 
