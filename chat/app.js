@@ -85,7 +85,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '2.3';
+const APP_VER = '2.4';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -570,8 +570,8 @@ const outbox = new Map();
 function sendNow(fields) {
   if (state.replyTo && state.replyTo.chat_id === state.open && typeof state.replyTo.id === 'number') {
     if (state.v6) fields = { ...fields, reply_to: state.replyTo.id };
-    // база ещё без шага 6: у текстового сообщения поле mime пустует — пишем туда, на что ответ
-    else if (fields.kind === 'text') fields = { ...fields, mime: 'reply:' + state.replyTo.id };
+    // база ещё без шага 6: пишем «ответ на» в незанятое поле (см. metaOf)
+    else fields = withMeta(fields, { r: state.replyTo.id });
   }
   if (state.replyTo) cancelReply();
   const tmp = { id: 'tmp-' + Math.random().toString(36).slice(2), pending: true, chat_id: state.open, sender_id: state.me.id, created_at: new Date().toISOString(), ...fields };
@@ -1109,10 +1109,26 @@ function timeHtml(m, c, mine) {
   return `<span class="time">${t}</span>`;
 }
 // над текстом: «переслано от» и цитата, на которую отвечают
-function replyIdOf(m) { return m.reply_to || (m.kind === 'text' && +(/^reply:(\d+)$/.exec(m.mime || '')?.[1] || 0)) || null; }
+// пока в базе нет колонок шага 6, «ответ на» и «переслано от» лежат в незанятом поле:
+// у текста — в mime, у фото, голосовых и файлов — в body. Формат: kc:{"r": id ответа, "f": {"n": имя, "c": откуда}}
+const META_PREFIX = 'kc:';
+function metaSlot(m) { return m.kind === 'text' ? 'mime' : m.kind === 'call' || m.kind === 'system' ? null : 'body'; }
+function metaOf(m) {
+  const slot = metaSlot(m), s = slot && m[slot];
+  if (!s) return {};
+  if (s.startsWith(META_PREFIX)) { try { return JSON.parse(s.slice(META_PREFIX.length)) || {}; } catch { return {}; } }
+  const old = /^reply:(\d+)$/.exec(s); return old ? { r: +old[1] } : {};
+}
+function withMeta(fields, meta) {
+  const slot = metaSlot(fields); if (!slot || !Object.keys(meta).length) return fields;
+  return { ...fields, [slot]: META_PREFIX + JSON.stringify(meta) };
+}
+function replyIdOf(m) { return m.reply_to || metaOf(m).r || null; }
+function fwdOf(m) { return m.fwd || metaOf(m).f || null; }
 function extraTop(m) {
   let h = '';
-  if (m.fwd?.name) h += `<div class="fwd">${ic('forward')}Переслано от ${esc(m.fwd.name)}${m.fwd.chat ? ' · ' + esc(m.fwd.chat) : ''}</div>`;
+  const f = fwdOf(m), fn = f?.name || f?.n, fc = f?.chat || f?.c;
+  if (fn) h += `<div class="fwd">${ic('forward')}Переслано от ${esc(fn)}${fc ? ' · ' + esc(fc) : ''}</div>`;
   const rid = replyIdOf(m);
   if (rid) {
     const o = msgById(rid);
@@ -1270,30 +1286,50 @@ async function gotoMsg(id) {
 
 // ---------- пересылка ----------
 let fwdMsg = null;
+const fwdPick = new Set();
 function openForward(m) {
-  fwdMsg = m;
+  fwdMsg = m; fwdPick.clear(); $('fwdHide').classList.remove('on'); paintFwdBtn();
   const list = [...state.chats.values()].filter(canPost).sort((x, y) => new Date(y.last?.created_at || y.last_message_at) - new Date(x.last?.created_at || x.last_message_at));
-  $('fwdList').innerHTML = list.map((c) => `<button class="item" data-fwd="${c.id}">${chatAvatar(c)}<div class="mid"><div class="t">${esc(chatName(c))}</div><div class="s">${isChannel(c) ? 'канал' : c.is_group ? 'группа' : '@' + esc(chatPeer(c)?.username || '')}</div></div></button>`).join('')
+  $('fwdList').innerHTML = list.map((c) => `<button class="item" data-fwd="${c.id}">${chatAvatar(c)}<div class="mid"><div class="t">${esc(chatName(c))}</div><div class="s">${isChannel(c) ? 'канал' : c.is_group ? 'группа' : '@' + esc(chatPeer(c)?.username || '')}</div></div><span class="check"></span></button>`).join('')
     || '<p class="dim small cardNote">Нет чатов, куда можно переслать</p>';
   $('fwdSheet').classList.remove('hidden');
 }
 $('fwdClose').onclick = () => $('fwdSheet').classList.add('hidden');
-$('fwdList').onclick = async (e) => {
-  const b = e.target.closest('[data-fwd]'); if (!b || !fwdMsg) return;
-  const m = fwdMsg, to = b.dataset.fwd, from = state.chats.get(m.chat_id);
+// выбор чатов (можно несколько), потом кнопка «Переслать»
+$('fwdList').onclick = (e) => {
+  const b = e.target.closest('[data-fwd]'); if (!b) return;
+  const id = b.dataset.fwd; fwdPick.has(id) ? fwdPick.delete(id) : fwdPick.add(id);
+  b.classList.toggle('sel', fwdPick.has(id)); b.querySelector('.check').innerHTML = fwdPick.has(id) ? ic('check') : '';
+  paintFwdBtn();
+};
+function paintFwdBtn() { $('fwdSend').disabled = !fwdPick.size; $('fwdSend').textContent = fwdPick.size > 1 ? `Переслать в ${fwdPick.size} чата` : 'Переслать'; }
+$('fwdHide').onclick = () => $('fwdHide').classList.toggle('on');
+$('fwdSend').onclick = async () => {
+  const m = fwdMsg; if (!m || !fwdPick.size) return;
+  const targets = [...fwdPick], hide = $('fwdHide').classList.contains('on'), from = state.chats.get(m.chat_id);
   $('fwdSheet').classList.add('hidden'); fwdMsg = null;
-  const row = { chat_id: to, sender_id: state.me.id, kind: m.kind, body: m.body, file_name: m.file_name, file_size: m.file_size, mime: m.mime, duration: m.duration };
-  if (state.v6) row.fwd = m.fwd || { name: authorName(m) === 'Вы' ? state.me.display_name : authorName(m), chat: isChannel(from) ? from.title : null };
-  try {
-    // файл лежит в папке старого чата — копируем в папку нового, иначе его участники не смогут его открыть
-    if (m.file_path) {
-      const ext = (m.file_path.split('.').pop() || 'bin').slice(0, 8), dest = `${to}/${crypto.randomUUID()}.${ext}`;
-      const { error } = await sb.storage.from('chat-files').copy(m.file_path, dest); if (error) throw error;
-      row.file_path = dest;
-    }
-    const { data, error } = await sb.from('messages').insert(row).select().single(); if (error) throw error;
-    addMsg(data); toast('Переслано в «' + chatName(state.chats.get(to)) + '»');
-  } catch (err) { toast(/privacy/.test(err.message || '') ? PRIVACY_TEXT(err.message) : 'Не переслано: ' + (err.message || err)); }
+  // «от кого»: если пересылают уже пересланное — сохраняем самого первого автора
+  const prev = fwdOf(m), name = prev?.name || prev?.n || (m.sender_id === state.me.id ? state.me.display_name : authorName(m));
+  const origin = prev ? (prev.chat || prev.c || null) : isChannel(from) ? from.title : null;
+  const fwd = hide ? null : { name, chat: origin };
+  let okCount = 0;
+  for (const to of targets) {
+    // чистое содержимое без служебных данных старого сообщения (ответ на чужое сообщение в новом чате не имеет смысла)
+    let row = { chat_id: to, sender_id: state.me.id, kind: m.kind, body: metaSlot(m) === 'body' ? null : m.body, file_name: m.file_name,
+      file_size: m.file_size, mime: metaSlot(m) === 'mime' ? null : m.mime, duration: m.duration };
+    if (fwd) row = state.v6 ? { ...row, fwd } : withMeta(row, { f: { n: fwd.name, c: fwd.chat || undefined } });
+    try {
+      // файл лежит в папке старого чата — копируем в папку нового, иначе его участники не смогут его открыть
+      if (m.file_path) {
+        const ext = (m.file_path.split('.').pop() || 'bin').slice(0, 8), dest = `${to}/${crypto.randomUUID()}.${ext}`;
+        const { error } = await sb.storage.from('chat-files').copy(m.file_path, dest); if (error) throw error;
+        row.file_path = dest;
+      }
+      const { data, error } = await sb.from('messages').insert(row).select().single(); if (error) throw error;
+      addMsg(data); okCount++;
+    } catch (err) { toast(/privacy/.test(err.message || '') ? PRIVACY_TEXT(err.message) : 'Не переслано: ' + (err.message || err)); }
+  }
+  if (okCount) toast(okCount > 1 ? `Переслано в ${okCount} чата` : 'Переслано в «' + chatName(state.chats.get(targets[0])) + '»');
 };
 
 // ---------- закреплённое сообщение ----------
@@ -1341,7 +1377,7 @@ async function runChatSearch() {
   const q = $('chatSearch').value.trim(), box = $('searchResults');
   if (q.length < 2) return box.classList.add('hidden');
   const chat = state.open;
-  const { data } = await sb.from('messages').select('*').eq('chat_id', chat).ilike('body', `%${q.replace(/[%_]/g, '')}%`).order('id', { ascending: false }).limit(40);
+  const { data } = await sb.from('messages').select('*').eq('chat_id', chat).eq('kind', 'text').ilike('body', `%${q.replace(/[%_]/g, '')}%`).order('id', { ascending: false }).limit(40);
   if (state.open !== chat) return;
   box.innerHTML = (data || []).filter((m) => !m.deleted).map((m) => `<button class="item" data-goto="${m.id}"><div class="mid"><div class="t">${esc(authorName(m))} <span class="dim small">${listTime(m.created_at)}</span></div><div class="s">${esc(m.body)}</div></div></button>`).join('')
     || '<p class="dim small cardNote">Ничего не нашлось</p>';
@@ -1902,6 +1938,17 @@ state.pendingChannel = /^\+([a-z0-9_]{4,32})$/.exec(HASH)?.[1] || null;
 if (state.pendingChannel) history.replaceState(null, '', location.pathname + location.search);
 const firstScreen = () => { let web = false; try { web = !!localStorage.getItem('kc-web'); } catch {} return IS_APP || web ? 'sAuth' : 'sWelcome'; };
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+// скачалась новая версия приложения: перезагружаемся сразу, если человек ничего не печатает, не говорит и не записывает,
+// иначе — как только свернёт приложение. Без этого новое показывалось бы только со второго запуска.
+if (navigator.serviceWorker?.controller) {
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading) return;
+    const go = () => { if (!reloading) { reloading = true; location.reload(); } };
+    const busy = () => input.value.trim() || call.local || rec || note || !$('sCall').classList.contains('hidden') || document.querySelector('.sheetBg:not(.hidden)');
+    if (!busy()) go(); else document.addEventListener('visibilitychange', () => { if (document.hidden) go(); });
+  });
+}
 navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.chat && state.chats.has(e.data.chat)) openChat(e.data.chat); });
 // открыли приложение нажатием на уведомление: ?chat=… — сразу в нужный чат
 const openFromPush = new URLSearchParams(location.search).get('chat');

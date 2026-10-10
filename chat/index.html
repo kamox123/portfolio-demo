@@ -326,7 +326,10 @@
 <!-- Меню сообщения -->
 <div class="sheetBg hidden" id="msgMenu"><div class="sheet glass"><div class="menuReacts" id="menuReacts"></div><div id="menuList"></div></div></div>
 <!-- Переслать -->
-<div class="sheetBg hidden" id="fwdSheet"><div class="sheet glass tall"><div class="sheetHead"><b>Переслать в…</b><button class="icon" id="fwdClose" aria-label="Закрыть"><i data-ic="close"></i></button></div><div class="list" id="fwdList"></div></div></div>
+<div class="sheetBg hidden" id="fwdSheet"><div class="sheet glass tall"><div class="sheetHead"><b>Переслать в…</b><button class="icon" id="fwdClose" aria-label="Закрыть"><i data-ic="close"></i></button></div>
+  <div class="list" id="fwdList"></div>
+  <div class="rowBtn fwdOpt"><span class="grow">Скрыть имя отправителя<br><span class="dim small">Сообщение придёт как будто от вас, без «Переслано от»</span></span><button class="switch" id="fwdHide" aria-label="Скрыть имя отправителя"></button></div>
+  <button class="btn" id="fwdSend" disabled>Переслать</button></div></div>
 <!-- Новый канал -->
 <div class="sheetBg hidden" id="channelSheet"><div class="sheet glass"><div class="sheetHead"><b>Новый канал</b><button class="icon" id="chClose" aria-label="Закрыть"><i data-ic="close"></i></button></div>
   <p class="dim small cardNote">В канале пишете только вы, остальные читают и ставят реакции. Подписаться можно по ссылке или через поиск.</p>
