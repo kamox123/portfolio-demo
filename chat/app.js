@@ -1,4 +1,4 @@
-// KAMOX Chat — мессенджер (Supabase: база, файлы, мгновенная доставка; звонки — WebRTC; уведомления — Web Push)
+// Klik — мессенджер (Supabase: база, файлы, мгновенная доставка; звонки — WebRTC; уведомления — Web Push)
 'use strict';
 // Supabase в России заблокирован — ходим через посредника на сервере бота (Render открывается и с VPN, и без)
 const SB_URL = 'https://vtoroy-mozg-bot.onrender.com/sb';
@@ -86,7 +86,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '2.7';
+const APP_VER = '2.8';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -350,7 +350,7 @@ function renderChatsNow() {
     </button>`).join('');
   $('chatList').querySelectorAll('[data-chat]').forEach((b) => (b.onclick = () => { if (b.dataset.lp) { delete b.dataset.lp; return; } openChat(b.dataset.chat); }));
   const total = list.filter((c) => !isMuted(c.id)).reduce((s, c) => s + c.unread, 0);
-  document.title = total ? `(${total}) KAMOX Chat` : 'KAMOX Chat';
+  document.title = total ? `(${total}) Klik` : 'Klik';
   if (navigator.setAppBadge) (total ? navigator.setAppBadge(total) : navigator.clearAppBadge()).catch(() => {});
 }
 
@@ -954,7 +954,7 @@ function deviceId() {
 function deviceName() {
   const u = navigator.userAgent;
   const os = /iphone/i.test(u) ? 'iPhone' : /ipad/i.test(u) ? 'iPad' : /android/i.test(u) ? 'Android' : /windows/i.test(u) ? 'Windows' : /mac os/i.test(u) ? 'Mac' : /linux/i.test(u) ? 'Linux' : 'Устройство';
-  if (window.Capacitor) return os + ' · приложение KAMOX Chat';
+  if (window.Capacitor) return os + ' · приложение Klik';
   if (matchMedia('(display-mode: standalone)').matches || navigator.standalone) return os + ' · приложение с экрана Домой';
   const br = /YaBrowser/.test(u) ? 'Яндекс Браузер' : /Edg\//.test(u) ? 'Edge' : /OPR\//.test(u) ? 'Opera' : /Firefox|FxiOS/.test(u) ? 'Firefox' : /CriOS|Chrome/.test(u) ? 'Chrome' : /Safari/.test(u) ? 'Safari' : 'браузер';
   return `${os} · ${br}`;
@@ -1722,7 +1722,7 @@ function installTip() {
   if (standalone || localStorage.getItem('kc-tip-hide')) return tip.classList.add('hidden');
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
   if (ios) tip.innerHTML = `${ic('install')}<span class="grow">Установите как приложение: «Поделиться» → «На экран Домой»</span><button class="icon" id="tipX">${ic('close')}</button>`;
-  else if (deferredInstall) tip.innerHTML = `${ic('install')}<span class="grow">Установить KAMOX Chat на телефон</span><button class="chip on" id="tipGo">Установить</button><button class="icon" id="tipX">${ic('close')}</button>`;
+  else if (deferredInstall) tip.innerHTML = `${ic('install')}<span class="grow">Установить Klik на телефон</span><button class="chip on" id="tipGo">Установить</button><button class="icon" id="tipX">${ic('close')}</button>`;
   else return tip.classList.add('hidden');
   tip.classList.remove('hidden');
   $('tipX').onclick = () => { localStorage.setItem('kc-tip-hide', '1'); tip.classList.add('hidden'); };

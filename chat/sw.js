@@ -1,5 +1,5 @@
 // Фоновая часть приложения: работа без сети и уведомления, когда приложение закрыто
-const CACHE = 'kamox-chat-v30';
+const CACHE = 'kamox-chat-v31';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'supabase.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-180.png', 'badge-96.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
@@ -21,14 +21,14 @@ self.addEventListener('fetch', (e) => {
 
 // пуш от сервера: новое сообщение или входящий звонок
 self.addEventListener('push', (e) => {
-  let d = {}; try { d = e.data.json(); } catch { d = { title: 'KAMOX Chat', body: e.data?.text() || '' }; }
+  let d = {}; try { d = e.data.json(); } catch { d = { title: 'Klik', body: e.data?.text() || '' }; }
   e.waitUntil((async () => {
     const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const ios = /iphone|ipad|ipod|macintosh/i.test(self.navigator.userAgent);
     // если приложение открыто и на экране — оно само покажет сообщение (на iPhone пуш обязан показаться всегда)
     if (!ios && d.type !== 'ring' && wins.some((w) => w.visibilityState === 'visible' && w.focused)) return;
     const ring = d.type === 'ring';
-    await self.registration.showNotification(d.title || 'KAMOX Chat', {
+    await self.registration.showNotification(d.title || 'Klik', {
       body: d.body || '', icon: 'icon-192.png', badge: 'badge-96.png',
       tag: ring ? 'call-' + d.chat : 'chat-' + d.chat, renotify: true,
       requireInteraction: ring, vibrate: ring ? [400, 200, 400, 200, 400] : [80],

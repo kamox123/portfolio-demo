@@ -1,6 +1,6 @@
 {
-  "name": "KAMOX Chat",
-  "short_name": "KAMOX Chat",
+  "name": "Klik",
+  "short_name": "Klik",
   "description": "Мессенджер для своих",
   "start_url": "./",
   "scope": "./",
