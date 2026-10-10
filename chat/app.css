@@ -392,3 +392,14 @@ html[data-font="s"] .m { font-size: 14.5px; } html[data-font="l"] .m { font-size
 .item .t > svg.ic:last-child { color: var(--dim); }
 .badge.muted { background: rgba(255, 255, 255, .25) !important; box-shadow: none !important; }
 .pinMark svg.ic { width: 15px; height: 15px; color: var(--dim); }
+
+/* админ-панель: нагрузка */
+.admLoad { border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.admLoad .lHead { font-weight: 800; font-size: 17px; }
+.lBar .lTop { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; margin-bottom: 6px; }
+.lBar .lTop b { white-space: nowrap; }
+.lTrack { height: 8px; border-radius: 6px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+.lTrack i { display: block; height: 100%; border-radius: 6px; }
+.lTrack i.ok { background: #34c759; } .lTrack i.warn { background: #ffcc00; } .lTrack i.red { background: #ff3b30; }
+.lNote { font-size: 12px; color: var(--muted); margin-top: 5px; }
+.lFoot { margin: 0; }

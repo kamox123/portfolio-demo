@@ -86,7 +86,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '2.8';
+const APP_VER = '2.9';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -1033,6 +1033,7 @@ let adminTab = 'users', adminData = { users: [], groups: [] };
 $('pAdmin').onclick = () => { show('sAdmin'); loadAdmin(); };
 async function loadAdmin() {
   $('admList').innerHTML = '<p class="dim small cardNote">Загружаю…</p>';
+  paintLoad();
   const [st, us, gr] = await Promise.all([sb.rpc('admin_stats'), sb.rpc('admin_users'), sb.rpc('admin_groups')]);
   if (st.error) { $('admList').innerHTML = `<p class="dim small cardNote">${esc(st.error.message)}</p>`; return; }
   const s = st.data;
@@ -1041,6 +1042,29 @@ async function loadAdmin() {
   $('admStats').innerHTML = tiles.map(([t, v]) => `<div class="admTile glass"><b>${v}</b><span>${t}</span></div>`).join('');
   adminData = { users: us.data || [], groups: gr.data || [] };
   paintAdmin();
+}
+// нагрузка: сколько осталось до бесплатных лимитов (Supabase: база 500 МБ, файлы 1 ГБ, 200 подключений; Render — трафик)
+const fmtBytes = (b) => (b >= 1e9 ? (b / 1e9).toFixed(2) + ' ГБ' : b >= 1e6 ? (b / 1e6).toFixed(1) + ' МБ' : Math.round(b / 1e3) + ' КБ');
+function loadBar(title, val, max, text, note = '') {
+  const p = Math.min(100, Math.round((val / max) * 100)), lvl = p >= 80 ? 'red' : p >= 50 ? 'warn' : 'ok';
+  return `<div class="lBar"><div class="lTop"><span>${title}</span><b>${text}</b></div><div class="lTrack"><i class="${lvl}" style="width:${Math.max(p, 2)}%"></i></div>${note ? `<div class="lNote">${note}</div>` : ''}</div>`;
+}
+async function paintLoad() {
+  const box = $('admLoad'); box.innerHTML = '<div class="lHead">Нагрузка</div><p class="dim small">Считаю…</p>';
+  const [ld, px] = await Promise.all([sb.rpc('admin_load'), fetch(SB_URL + '/__stats', { cache: 'no-store' }).then((r) => r.json()).catch(() => null)]);
+  const l = ld.data || {}; const rows = [];
+  if (px) {
+    const days = Math.max(1, (Date.now() - new Date(px.since)) / 864e5);
+    const month = (px.out / days) * 30;
+    rows.push(loadBar('Подключены сейчас', px.ws, 200, `${px.ws} из 200`, `Больше всего одновременно: ${px.wsPeak}`));
+    rows.push(loadBar('Трафик посредника (Render)', month, 5e9, fmtBytes(px.out),
+      `С ${new Date(px.since).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · в месяц выйдет около ${fmtBytes(month)} · лимит смотрите в кабинете Render`));
+  } else rows.push('<p class="dim small">Посредник не ответил — возможно, он перезапускается.</p>');
+  if (!ld.error) {
+    rows.push(loadBar('Файлы (фото, кружки, голосовые)', l.files_bytes, 1e9, `${fmtBytes(l.files_bytes)} из 1 ГБ`, `${l.files} файлов · за сутки +${fmtBytes(l.files_day_bytes)}`));
+    rows.push(loadBar('База (сообщения, профили)', l.db_bytes, 5e8, `${fmtBytes(l.db_bytes)} из 500 МБ`, `Сообщений за сутки: ${l.messages_day} · заходили за сутки: ${l.active_day}, за месяц: ${l.active_month}`));
+  }
+  box.innerHTML = '<div class="lHead">Нагрузка</div>' + rows.join('') + '<p class="dim small lFoot">Зелёный — запас большой, жёлтый — больше половины, красный — пора переходить на платный тариф.</p>';
 }
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
 function paintAdmin() {
