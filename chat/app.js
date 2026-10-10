@@ -197,6 +197,7 @@ async function start(session) {
   state.history = [];
   show('sChats', false);
   loadChatsCache(); // мгновенно — из памяти телефона
+  if (navigator.onLine === false) netDown(); // телефон сам знает, что сети нет, — не ждём, пока запросы сдадутся
   await Promise.all([loadChats(), loadV3()]); // одновременно, а не друг за другом
   subscribe();
   listenCalls();
@@ -214,7 +215,7 @@ async function refreshMe() {
 }
 // полоса «нет связи»
 let netTimer = null;
-function netDown() { clearTimeout(netTimer); netTimer = setTimeout(() => $('netBar').classList.remove('hidden'), 1500); }
+function netDown() { clearTimeout(netTimer); netTimer = setTimeout(() => $('netBar').classList.remove('hidden'), navigator.onLine === false ? 0 : 1500); }
 function netUp() { clearTimeout(netTimer); $('netBar').classList.add('hidden'); }
 window.addEventListener('offline', netDown);
 window.addEventListener('online', () => { if (state.me) { loadChats(); refreshMe(); } });
