@@ -85,7 +85,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '2.5';
+const APP_VER = '2.6';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -1010,9 +1010,14 @@ $('devAdd').onclick = async () => {
 $('devCopy').onclick = () => copyText($('devLink').textContent);
 // школьный чат без интернета — есть в приложениях для Android (версия 1.8 и новее) и iPhone
 // мостик есть в приложениях: Android — window.KamoxLocal, iPhone — window.webkit.messageHandlers.kamoxLocal
-const LOCAL_IOS = !!window.webkit?.messageHandlers?.kamoxLocal, LOCAL_CHAT = !!window.KamoxLocal || LOCAL_IOS;
-function openLocalChat() { location.href = (LOCAL_IOS ? 'capacitor://localhost' : 'https://localhost') + '/offline.html#name=' + encodeURIComponent(state.me?.display_name || ''); }
-if (LOCAL_CHAT) { $('pLocal').classList.remove('hidden'); $('netLocal').classList.remove('hidden'); }
+// Чат без интернета есть в установленных приложениях (Android и iPhone), в браузере — нет.
+// Мостик к приложению на iPhone может подключиться чуть позже страницы, поэтому проверяем несколько раз.
+const isIosApp = () => !!window.webkit?.messageHandlers?.kamoxLocal || window.Capacitor?.getPlatform?.() === 'ios';
+const hasLocalChat = () => !!window.KamoxLocal || isIosApp() || !!window.Capacitor?.isNativePlatform?.();
+function openLocalChat() { location.href = (isIosApp() ? 'capacitor://localhost' : 'https://localhost') + '/offline.html#name=' + encodeURIComponent(state.me?.display_name || ''); }
+function paintLocalChat() { const on = hasLocalChat(); ['pLocal', 'netLocal', 'localBtn'].forEach((id) => $(id).classList.toggle('hidden', !on)); }
+paintLocalChat(); [500, 1500, 4000].forEach((ms) => setTimeout(paintLocalChat, ms));
+$('localBtn').onclick = openLocalChat;
 $('pLocal').onclick = $('netLocal').onclick = openLocalChat;
 $('pLink').onclick = () => copyText(LINK(state.me.username), 'Ссылка на ваш профиль скопирована');
 
