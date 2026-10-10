@@ -86,7 +86,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '2.9';
+const APP_VER = '3.0';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -1673,14 +1673,27 @@ async function syncPush(ask) {
 function paintNotifUi() {
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent), standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
   let text = 'Включены', can = false;
-  if (!pushSupported()) text = ios && !standalone ? 'Сначала добавьте на экран Домой' : 'Не поддерживаются';
+  if (window.Capacitor && !pushSupported()) text = 'Через ярлык сайта';
+  else if (!pushSupported()) text = ios && !standalone ? 'Сначала добавьте на экран Домой' : 'Не поддерживаются';
   else if (Notification.permission === 'default') { text = 'Выключены'; can = true; }
   else if (Notification.permission === 'denied') text = 'Запрещены в настройках';
   $('pNotifState').textContent = text;
   $('notifTip').classList.toggle('hidden', !can || localStorage.getItem('kc-notif-hide') === '1');
 }
+// в приложении (APK / iPhone) встроенный браузер не принимает уведомления сайтов — объясняем, где они работают
+function pushHelp() {
+  if (pushSupported()) return false;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || window.Capacitor?.getPlatform?.() === 'ios';
+  if (window.Capacitor) alert(ios
+    ? 'В этом приложении iPhone не даёт получать уведомления — для этого нужна платная учётная запись разработчика Apple.\n\nБесплатный способ: откройте kamox123.github.io/chat в Safari → «Поделиться» → «На экран Домой». Откройте Klik с этого ярлыка, войдите и включите уведомления там. Уведомления будут приходить, даже когда всё закрыто.'
+    : 'В этом приложении уведомления пока не работают.\n\nОткройте kamox123.github.io/chat в Chrome → меню (три точки) → «Установить приложение» или «Добавить на главный экран». Там включите уведомления.');
+  else if (ios) toast('Сначала «Поделиться» → «На экран Домой», потом откройте Klik с ярлыка', 4000);
+  else toast('Этот браузер не поддерживает уведомления — откройте сайт в Chrome', 4000);
+  return true;
+}
 $('notifGo').onclick = async () => { if (await syncPush(true)) toast('Уведомления включены'); };
 $('pNotif').onclick = async () => {
+  if (pushHelp()) return;
   if (Notification?.permission === 'denied') return toast('Разрешите уведомления в настройках браузера или телефона');
   if (await syncPush(true)) toast('Уведомления включены');
 };
@@ -1732,6 +1745,7 @@ $('passSave').onclick = async () => {
   $('newPass').value = ''; $('passBox').classList.add('hidden'); toast('Пароль изменён');
 };
 $('pTestPush').onclick = async () => {
+  if (pushHelp()) return;
   if (!(await syncPush(true))) return;
   const { error } = await sb.functions.invoke('notify', { body: { type: 'test' } });
   toast(error ? 'Сервер уведомлений ещё не подключён' : 'Отправил — сверните приложение, уведомление придёт через пару секунд', 4000);
