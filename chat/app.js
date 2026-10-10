@@ -944,9 +944,10 @@ $('devAdd').onclick = async () => {
   $('devLink').textContent = link; box.classList.remove('hidden');
 };
 $('devCopy').onclick = () => copyText($('devLink').textContent);
-// школьный чат без интернета — есть только в приложении для Android (версия 1.8 и новее)
-const LOCAL_CHAT = !!window.KamoxLocal;
-function openLocalChat() { location.href = 'https://localhost/offline.html#name=' + encodeURIComponent(state.me?.display_name || ''); }
+// школьный чат без интернета — есть в приложениях для Android (версия 1.8 и новее) и iPhone
+// мостик есть в приложениях: Android — window.KamoxLocal, iPhone — window.webkit.messageHandlers.kamoxLocal
+const LOCAL_IOS = !!window.webkit?.messageHandlers?.kamoxLocal, LOCAL_CHAT = !!window.KamoxLocal || LOCAL_IOS;
+function openLocalChat() { location.href = (LOCAL_IOS ? 'capacitor://localhost' : 'https://localhost') + '/offline.html#name=' + encodeURIComponent(state.me?.display_name || ''); }
 if (LOCAL_CHAT) { $('pLocal').classList.remove('hidden'); $('netLocal').classList.remove('hidden'); }
 $('pLocal').onclick = $('netLocal').onclick = openLocalChat;
 $('pLink').onclick = () => copyText(LINK(state.me.username), 'Ссылка на ваш профиль скопирована');
