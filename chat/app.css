@@ -384,3 +384,4 @@ html[data-font="s"] .m { font-size: 14.5px; } html[data-font="l"] .m { font-size
 #fwdList .item.sel { background: rgba(123, 97, 255, .22); }
 #fwdList .item.sel .check { background: var(--grad); border-color: transparent; }
 .fwdOpt { margin-top: 0; } #fwdSend:disabled { opacity: .45; }
+.item .t svg.ic { display: inline-block; }

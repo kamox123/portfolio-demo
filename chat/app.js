@@ -85,7 +85,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '2.4';
+const APP_VER = '2.5';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -734,14 +734,19 @@ $('noteBtn').onclick = async () => {
   draw();
   n.drawT = setInterval(() => { if (document.hidden) draw(); }, 40); // в фоне requestAnimationFrame спит
   const stream = cv.captureStream(30); mic.getAudioTracks().forEach((t) => stream.addTrack(t));
-  const type = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t)) || '';
+  // avc3 — тот же H.264, но не ломается, если камера на ходу меняет размер кадра; где его нет — обычный mp4/webm
+  const type = ['video/mp4;codecs=avc3.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t)) || '';
   try { n.mr = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), videoBitsPerSecond: 900000, audioBitsPerSecond: 64000 }); }
   catch { stopNote(false); return toast('Не удалось начать запись'); }
   n.mr.ondataavailable = (e) => e.data.size && n.chunks.push(e.data);
   n.mr.onstop = () => finishNote(n);
-  n.mr.start(500); sfx.recStart(); VIBRO(20);
   $('noteWrap').classList.remove('back'); $('noteRing').style.strokeDashoffset = RING;
-  $('noteRec').classList.remove('hidden');
+  $('noteRec').classList.remove('hidden'); // окно записи — сразу
+  // камера первые доли секунды отдаёт чёрные кадры — запись начинаем, когда появилась картинка (и ещё чуть-чуть)
+  await new Promise((res) => { const t0 = Date.now(); const chk = () => (prev.videoWidth || Date.now() - t0 > 3000 ? setTimeout(res, 350) : setTimeout(chk, 50)); chk(); });
+  if (note !== n) return;
+  n.t0 = Date.now();
+  n.mr.start(500); sfx.recStart(); VIBRO(20);
   n.timer = setInterval(() => {
     const sec = (Date.now() - n.t0) / 1000;
     $('noteTime').textContent = fmtDur(sec);
@@ -786,17 +791,19 @@ let notePlaying = null;
 async function wireNote(el) {
   const v = el.querySelector('video'), ring = el.querySelector('.vring circle'), dur = el.querySelector('.vdur');
   const total = +el.dataset.dur || 0;
-  fileUrl(el.dataset.vnote).then((u) => { if (u) v.src = u + '#t=0.1'; });
+  // превью — кадр из середины: первые доли секунды у настоящей камеры почти всегда чёрные
+  const poster = total ? Math.min(1, total * 0.4) : 0.8;
+  fileUrl(el.dataset.vnote).then((u) => { if (u) v.src = u + '#t=' + poster.toFixed(2); });
   v.ontimeupdate = () => {
     const d = isFinite(v.duration) && v.duration ? v.duration : total || 1;
     ring.style.strokeDashoffset = RING * (1 - v.currentTime / d); dur.textContent = fmtDur(v.currentTime);
   };
-  v.onended = () => { el.classList.remove('on'); ring.style.strokeDashoffset = RING; dur.textContent = fmtDur(total); v.currentTime = 0.1; notePlaying = null; };
+  v.onended = () => { el.classList.remove('on', 'started'); ring.style.strokeDashoffset = RING; dur.textContent = fmtDur(total); v.currentTime = poster; notePlaying = null; };
   el.onclick = () => {
     if (!v.src) return;
     if (notePlaying && notePlaying !== v) { notePlaying.pause(); notePlaying.closest('.vnote')?.classList.remove('on'); }
     if (playing) { playing.audio.pause(); }
-    if (v.paused) { v.muted = false; v.play().then(() => { el.classList.add('on'); notePlaying = v; }).catch(() => toast('Не удалось воспроизвести')); }
+    if (v.paused) { if (!el.classList.contains('started')) { v.currentTime = 0; el.classList.add('started'); } v.muted = false; v.play().then(() => { el.classList.add('on'); notePlaying = v; }).catch(() => toast('Не удалось воспроизвести')); }
     else { v.pause(); el.classList.remove('on'); }
   };
 }

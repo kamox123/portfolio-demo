@@ -1,5 +1,5 @@
 // Фоновая часть приложения: работа без сети и уведомления, когда приложение закрыто
-const CACHE = 'kamox-chat-v27';
+const CACHE = 'kamox-chat-v28';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'supabase.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-180.png', 'badge-96.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
