@@ -85,7 +85,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '2.2';
+const APP_VER = '2.3';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -568,7 +568,11 @@ async function sendText() {
 const MSG_FIELDS = ['kind', 'body', 'file_path', 'file_name', 'file_size', 'mime', 'duration', 'reply_to'];
 const outbox = new Map();
 function sendNow(fields) {
-  if (state.replyTo && state.v6 && state.replyTo.chat_id === state.open) { fields = { ...fields, reply_to: state.replyTo.id }; }
+  if (state.replyTo && state.replyTo.chat_id === state.open && typeof state.replyTo.id === 'number') {
+    if (state.v6) fields = { ...fields, reply_to: state.replyTo.id };
+    // база ещё без шага 6: у текстового сообщения поле mime пустует — пишем туда, на что ответ
+    else if (fields.kind === 'text') fields = { ...fields, mime: 'reply:' + state.replyTo.id };
+  }
   if (state.replyTo) cancelReply();
   const tmp = { id: 'tmp-' + Math.random().toString(36).slice(2), pending: true, chat_id: state.open, sender_id: state.me.id, created_at: new Date().toISOString(), ...fields };
   outbox.set(tmp.id, tmp);
@@ -1105,12 +1109,14 @@ function timeHtml(m, c, mine) {
   return `<span class="time">${t}</span>`;
 }
 // над текстом: «переслано от» и цитата, на которую отвечают
+function replyIdOf(m) { return m.reply_to || (m.kind === 'text' && +(/^reply:(\d+)$/.exec(m.mime || '')?.[1] || 0)) || null; }
 function extraTop(m) {
   let h = '';
   if (m.fwd?.name) h += `<div class="fwd">${ic('forward')}Переслано от ${esc(m.fwd.name)}${m.fwd.chat ? ' · ' + esc(m.fwd.chat) : ''}</div>`;
-  if (m.reply_to) {
-    const o = msgById(m.reply_to);
-    h += `<div class="quote" data-goto="${m.reply_to}"><b>${esc(o ? authorName(o) : 'Ответ')}</b><span>${esc(shortText(o))}</span></div>`;
+  const rid = replyIdOf(m);
+  if (rid) {
+    const o = msgById(rid);
+    h += `<div class="quote" data-goto="${rid}"><b>${esc(o ? authorName(o) : 'Ответ')}</b><span>${esc(shortText(o))}</span></div>`;
   }
   return h;
 }
@@ -1138,7 +1144,7 @@ function repaintMsg(id) {
   el.replaceWith(n);
   wireMsgs({ querySelectorAll: (q) => [...(n.matches(q) ? [n] : []), ...n.querySelectorAll(q)] });
 }
-function repaintAll() { (state.msgs.get(state.open) || []).forEach((m) => { if (state.reacts.has(m.id) || m.reply_to) repaintMsg(m.id); }); }
+function repaintAll() { (state.msgs.get(state.open) || []).forEach((m) => { if (state.reacts.has(m.id) || replyIdOf(m)) repaintMsg(m.id); }); }
 async function setReact(m, r) {
   if (!state.v6 || typeof m.id !== 'number') return toast('Реакции появятся после обновления базы');
   const map = state.reacts.get(m.id) || new Map(); state.reacts.set(m.id, map);
@@ -1160,7 +1166,7 @@ function openMsgMenu(m) {
   const canEdit = state.v6 && mine && m.kind === 'text' && !m.deleted && Date.now() - new Date(m.created_at) < 48 * 3600e3;
   const pinned = c?.pinned_id === m.id, canPin = state.v6 && (!isChannel(c) || c.myRole === 'owner');
   const items = [
-    !m.deleted && state.v6 && canPost(c) && ['reply', 'Ответить', 'reply'],
+    !m.deleted && canPost(c) && ['reply', 'Ответить', 'reply'],
     m.kind === 'text' && !m.deleted && ['copy', 'Скопировать', 'copy'],
     !m.deleted && ['forward', 'Переслать', 'forward'],
     canPin && !m.deleted && [pinned ? 'unpin' : 'pin', pinned ? 'Открепить' : 'Закрепить', 'pin'],
@@ -1208,7 +1214,7 @@ $('menuList').onclick = async (e) => {
     const mx = e.touches[0].clientX - sx, my = e.touches[0].clientY - sy;
     if (Math.abs(mx) > 8 || Math.abs(my) > 8) { clearTimeout(t); t = null; }
     if (Math.abs(my) > 30 && Math.abs(my) > Math.abs(mx)) { el.style.transform = ''; el = null; return; }
-    if (mx < 0 && state.v6) { dx = Math.max(mx, -90); el.style.transform = `translateX(${dx}px)`; el.classList.toggle('swipeOk', dx < -60); }
+    if (mx < 0) { dx = Math.max(mx, -90); el.style.transform = `translateX(${dx}px)`; el.classList.toggle('swipeOk', dx < -60); }
   }, { passive: true });
   box.addEventListener('touchend', () => {
     clearTimeout(t); t = null;
