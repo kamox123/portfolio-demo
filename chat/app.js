@@ -63,7 +63,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '1.9.1';
+const APP_VER = '2.0';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -196,6 +196,7 @@ async function start(session) {
   paintMe();
   state.history = [];
   show('sChats', false);
+  loadChatsCache(); // мгновенно — из памяти телефона
   await loadChats();
   await loadV3();
   subscribe();
@@ -225,31 +226,58 @@ function heartbeat() { if (state.me && !document.hidden) { deviceBeat(); checkBa
 let chatsLoading = null;
 function loadChats() { return (chatsLoading ??= loadChatsNow().finally(() => (chatsLoading = null))); }
 async function loadChatsNow() {
+  // чаты, участники и последнее сообщение каждого чата — одним запросом
   const { data, error } = await sb.from('chat_members')
-    .select('last_read_at, chats(id,is_group,title,avatar_path,last_message_at, chat_members(user_id, profiles(id,username,display_name,avatar_path,last_seen)))')
-    .eq('user_id', state.me.id);
+    .select('last_read_at, chats(id,is_group,title,avatar_path,last_message_at, chat_members(user_id, profiles(id,username,display_name,avatar_path,last_seen)), messages(*))')
+    .eq('user_id', state.me.id)
+    .order('id', { referencedTable: 'chats.messages', ascending: false })
+    .limit(1, { referencedTable: 'chats.messages' });
   if (error) { netDown(); setTimeout(loadChats, 5000); return; }
   netUp();
+  const pendingLast = new Map([...state.chats.values()].filter((c) => c.last?.pending).map((c) => [c.id, c.last]));
   state.chats.clear();
   if (!state.listShown) { state.listShown = true; $('chatList').classList.add('animList'); setTimeout(() => $('chatList').classList.remove('animList'), 900); }
   for (const row of data) {
     const c = row.chats; if (!c) continue;
     const members = c.chat_members.map((m) => m.profiles).filter(Boolean);
-    members.forEach((p) => state.profiles.set(p.id, p));
-    state.chats.set(c.id, { ...c, members, lastRead: row.last_read_at, last: null, unread: 0 });
+    members.forEach((p) => state.profiles.set(p.id, { ...(state.profiles.get(p.id) || {}), ...p }));
+    const last = c.messages?.[0] || null; delete c.messages; delete c.chat_members;
+    state.chats.set(c.id, { ...c, members, lastRead: row.last_read_at, last: pendingLast.get(c.id) || last, unread: 0 });
   }
-  await Promise.all([...state.chats.values()].map(async (c) => {
-    // сначала последнее сообщение, потом счёт строго до него: более новые досчитает addMsg — без двойного счёта
-    const { data: last } = await sb.from('messages').select('*').eq('chat_id', c.id).order('id', { ascending: false }).limit(1);
-    c.last = last?.[0] || null; c.unread = 0;
-    if (c.last) {
-      const { count } = await sb.from('messages').select('id', { count: 'exact', head: true }).eq('chat_id', c.id)
-        .lte('id', c.last.id).gt('created_at', c.lastRead).neq('sender_id', state.me.id).neq('kind', 'system');
-      c.unread = count || 0;
+  // непрочитанные — тоже одним запросом по всем чатам сразу
+  const fresh = [...state.chats.values()].filter((c) => c.last && !c.last.pending && new Date(c.last.created_at) > new Date(c.lastRead));
+  if (fresh.length) {
+    const since = fresh.reduce((a, c) => (new Date(c.lastRead) < new Date(a) ? c.lastRead : a), fresh[0].lastRead);
+    const { data: rows } = await sb.from('messages').select('id,chat_id,created_at').in('chat_id', fresh.map((c) => c.id))
+      .gt('created_at', since).neq('sender_id', state.me.id).neq('kind', 'system').order('id', { ascending: false }).limit(3000);
+    for (const m of rows || []) {
+      const c = state.chats.get(m.chat_id);
+      if (c && m.id <= c.last.id && new Date(m.created_at) > new Date(c.lastRead)) c.unread++;
     }
-  }));
+  }
   renderChats();
+  saveChatsCache();
 }
+// ---------- память телефона: чаты и последние сообщения показываются сразу, свежее догружается ----------
+const cacheKey = (k) => `kc-${k}-${state.me.id}`;
+function saveChatsCache() { try { localStorage.setItem(cacheKey('chats'), JSON.stringify([...state.chats.values()])); } catch {} }
+function loadChatsCache() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(cacheKey('chats')) || 'null'); if (!arr?.length) return false;
+    for (const c of arr) { if (c.last?.pending) c.last = null; state.chats.set(c.id, c); c.members.forEach((p) => state.profiles.has(p.id) || state.profiles.set(p.id, p)); }
+    renderChats(); return true;
+  } catch { return false; }
+}
+const msgSaveT = new Map();
+function saveMsgsCache(chatId) {
+  clearTimeout(msgSaveT.get(chatId));
+  msgSaveT.set(chatId, setTimeout(() => {
+    const list = (state.msgs.get(chatId) || []).filter((m) => !m.pending).slice(-60);
+    try { localStorage.setItem(cacheKey('msgs-' + chatId), JSON.stringify(list)); } catch {}
+  }, 400));
+}
+function loadMsgsCache(chatId) { try { return JSON.parse(localStorage.getItem(cacheKey('msgs-' + chatId)) || 'null'); } catch { return null; } }
+function clearCaches() { try { Object.keys(localStorage).filter((k) => /^kc-(chats|msgs-)/.test(k)).forEach((k) => localStorage.removeItem(k)); } catch {} }
 function chatPeer(c) { return c.is_group ? null : c.members.find((p) => p.id !== state.me.id) || state.me; }
 function chatName(c) { return c.is_group ? c.title : chatPeer(c)?.display_name || 'Чат'; }
 function chatAvatar(c, cls = '', withOnline = false) {
@@ -355,12 +383,19 @@ async function openChat(id, replace = false) {
   $('chatHead').innerHTML = `${chatAvatar(c, 'sm', true)}<div style="min-width:0"><div class="t">${esc(chatName(c))}</div>
     <div class="s ${on ? 'on' : ''}">${c.is_group ? c.members.length + ' участник(ов)' : seenText(peer)}</div></div>`;
   $('callAudio').classList.toggle('hidden', c.is_group); $('callVideo').classList.toggle('hidden', c.is_group);
-  $('msgs').innerHTML = '';
+  // сразу показываем то, что уже есть: открытый раньше список или память телефона
+  const had = state.msgs.get(id) || loadMsgsCache(id);
+  if (had) { state.msgs.set(id, had); renderMsgs(true); } else $('msgs').innerHTML = '<div class="loading"><span class="spin"></span></div>';
   show('sChat', !replace);
-  const { data } = await sb.from('messages').select('*').eq('chat_id', id).order('created_at', { ascending: false }).limit(80);
+  const { data, error } = await sb.from('messages').select('*').eq('chat_id', id).order('created_at', { ascending: false }).limit(80);
   if (state.open !== id) return;
-  state.msgs.set(id, (data || []).reverse());
-  renderMsgs(true);
+  if (error) { netDown(); if (!had) $('msgs').innerHTML = '<div class="empty" style="margin-top:18vh"><p>Нет связи</p><span class="muted">Переписка загрузится, когда появится интернет</span></div>'; return; }
+  const fresh = (data || []).reverse();
+  const pend = (state.msgs.get(id) || []).filter((m) => m.pending);
+  const same = had && had.length === fresh.length && had.every((m, i) => m.id === fresh[i].id);
+  state.msgs.set(id, fresh.concat(pend));
+  if (!same) renderMsgs(!had);
+  saveMsgsCache(id);
   markRead(c);
 }
 function markRead(c) {
@@ -374,14 +409,44 @@ function renderMsgs(toBottom) {
   let html = '', day = '';
   for (const m of list) {
     const d = dayLabel(m.created_at); if (d !== day) { html += `<div class="day">${d}</div>`; day = d; }
-    html += msgHtml(m, c);
+    html += msgNode(m, c);
   }
   box.innerHTML = html || '<div class="empty" style="margin-top:18vh"><div class="emptyIc">' + ic('chat') + '</div><p>Напишите первое сообщение</p></div>';
-  box.querySelectorAll('[data-img]').forEach(loadImg);
-  box.querySelectorAll('[data-voice]').forEach(wireVoice);
-  box.querySelectorAll('[data-vnote]').forEach(wireNote);
-  box.querySelectorAll('[data-file]').forEach((a) => (a.onclick = async (e) => { e.preventDefault(); const u = await fileUrl(a.dataset.file, a.dataset.name); if (u) window.open(u, '_blank'); }));
+  prefetchUrls(list).finally(() => wireMsgs(box));
   if (toBottom || nearBottom) box.scrollTop = box.scrollHeight;
+}
+// сообщение с отметкой id (по ней «отправляется…» заменяется настоящим)
+function msgNode(m, c) {
+  const h = msgHtml(m, c);
+  return h.startsWith('<div class="m ') ? h.replace('<div class="m ', `<div data-id="${esc(m.id)}" class="m ${m.pending ? 'pending' : ''} ${m.failed ? 'failed' : ''} `) : h;
+}
+function wireMsgs(root) {
+  root.querySelectorAll('[data-img]').forEach(loadImg);
+  root.querySelectorAll('[data-voice]').forEach(wireVoice);
+  root.querySelectorAll('[data-vnote]').forEach(wireNote);
+  root.querySelectorAll('[data-file]').forEach((a) => (a.onclick = async (e) => { e.preventDefault(); const u = await fileUrl(a.dataset.file, a.dataset.name); if (u) window.open(u, '_blank'); }));
+  root.querySelectorAll('.m.failed').forEach((el) => (el.onclick = () => retrySend(el.dataset.id)));
+}
+// новое сообщение в конец — без перерисовки всей переписки
+function appendMsg(m) {
+  const box = $('msgs'), c = state.chats.get(state.open), list = state.msgs.get(state.open) || [];
+  const prev = list[list.length - 2];
+  const near = box.scrollHeight - box.scrollTop - box.clientHeight < 140;
+  box.querySelector('.empty, .loading')?.remove();
+  let html = '';
+  if (!prev || dayLabel(prev.created_at) !== dayLabel(m.created_at)) html += `<div class="day">${dayLabel(m.created_at)}</div>`;
+  const t = document.createElement('template'); t.innerHTML = html + msgNode(m, c);
+  const nodes = [...t.content.children]; box.append(...nodes);
+  // привязываем кнопки и картинки только у новых узлов (включая сам узел сообщения)
+  nodes.forEach((n) => wireMsgs({ querySelectorAll: (q) => [...(n.matches(q) ? [n] : []), ...n.querySelectorAll(q)] }));
+  if (near || m.sender_id === state.me.id) box.scrollTop = box.scrollHeight;
+}
+async function prefetchUrls(msgs) {
+  const paths = [...new Set(msgs.filter((m) => m.file_path && /image|voice/.test(m.kind)).map((m) => m.file_path))]
+    .filter((p) => !(urlCache.get(p)?.exp > Date.now()));
+  if (!paths.length) return;
+  const { data } = await sb.storage.from('chat-files').createSignedUrls(paths, 3600);
+  for (const d of data || []) if (d.signedUrl && d.path) urlCache.set(d.path, { url: d.signedUrl, exp: Date.now() + 3500e3 });
 }
 // «волна» голосового: высота столбиков зависит от id, чтобы у каждого сообщения своя
 function waveBars(seed, n = 28) {
@@ -445,35 +510,74 @@ syncSendBtn();
 $('sendBtn').onclick = sendText;
 async function sendText() {
   const body = input.value.trim(); if (!body || !state.open) return;
-  const b = $('sendBtn'); b.classList.remove('fly'); void b.offsetWidth; b.classList.add('fly'); sfx.send(); VIBRO(15);
-  input.value = ''; input.style.height = 'auto'; input.focus(); setTimeout(syncSendBtn, 420); // кнопка успевает «улететь»
-  await insertMsg({ kind: 'text', body });
+  input.value = ''; input.style.height = 'auto'; input.focus();
+  sendNow({ kind: 'text', body }); // сначала сообщение на экран, звук и анимация — следом
+  const b = $('sendBtn'); b.classList.remove('fly'); void b.offsetWidth; b.classList.add('fly'); VIBRO(15);
+  setTimeout(() => sfx.send(), 0); setTimeout(syncSendBtn, 420); // кнопка успевает «улететь»
 }
-async function insertMsg(fields) {
-  const chat_id = state.open;
-  const { data, error } = await sb.from('messages').insert({ chat_id, sender_id: state.me.id, ...fields }).select().single();
-  if (error) { toast(/banned/.test(error.message) ? BANNED_TEXT : /privacy/.test(error.message) ? PRIVACY_TEXT(error.message) : 'Не отправлено: ' + error.message); return null; }
-  addMsg(data); return data;
+// сообщение появляется сразу с пометкой «отправляется», а уходит на сервер в фоне
+const MSG_FIELDS = ['kind', 'body', 'file_path', 'file_name', 'file_size', 'mime', 'duration'];
+const outbox = new Map();
+function sendNow(fields) {
+  const tmp = { id: 'tmp-' + Math.random().toString(36).slice(2), pending: true, chat_id: state.open, sender_id: state.me.id, created_at: new Date().toISOString(), ...fields };
+  outbox.set(tmp.id, tmp);
+  addMsg(tmp);
+  return deliver(tmp);
 }
+async function deliver(tmp) {
+  const row = { chat_id: tmp.chat_id, sender_id: state.me.id }; MSG_FIELDS.forEach((k) => tmp[k] !== undefined && (row[k] = tmp[k]));
+  const { data, error } = await sb.from('messages').insert(row).select().single();
+  if (!error) { outbox.delete(tmp.id); addMsg(data); return data; }
+  const msg = error.message || '';
+  if (/banned|privacy|violates|denied/i.test(msg)) { outbox.delete(tmp.id); toast(/banned/.test(msg) ? BANNED_TEXT : /privacy/.test(msg) ? PRIVACY_TEXT(msg) : 'Не отправлено: ' + msg); }
+  else { netDown(); scheduleRetry(); }
+  tmp.failed = true; markFailed(tmp);
+  return null;
+}
+function markFailed(tmp) { const el = $('msgs').querySelector(`[data-id="${tmp.id}"]`); if (el) { el.classList.add('failed'); el.onclick = () => retrySend(tmp.id); } }
+function retrySend(id) {
+  const tmp = outbox.get(id); if (!tmp) return;
+  tmp.failed = false; $('msgs').querySelector(`[data-id="${id}"]`)?.classList.remove('failed');
+  deliver(tmp);
+}
+let retryT = null;
+function scheduleRetry() { clearTimeout(retryT); retryT = setTimeout(() => [...outbox.keys()].forEach(retrySend), 6000); }
+window.addEventListener('online', () => setTimeout(() => [...outbox.keys()].forEach(retrySend), 800));
+async function insertMsg(fields) { return sendNow(fields); }
 function addMsg(m) {
   const list = state.msgs.get(m.chat_id);
-  if (list && !list.some((x) => x.id === m.id)) {
-    list.push(m);
-    if (state.open === m.chat_id) {
-      state.animId = m.id; renderMsgs(m.sender_id === state.me.id); state.animId = null; // анимация только у нового
-      if (m.sender_id !== state.me.id && m.kind !== 'system' && !document.hidden) sfx.receive();
+  if (list) {
+    // своё сообщение уже показано как «отправляется» — подменяем его настоящим (без мигания)
+    let i = -1;
+    if (m.sender_id === state.me.id && !m.pending && !list.some((x) => x.id === m.id)) {
+      i = list.findIndex((x) => x.pending && MSG_FIELDS.every((k) => (x[k] ?? null) == (m[k] ?? null) || k === 'duration' || k === 'mime'));
+    }
+    if (i >= 0) {
+      const tmp = list[i]; list[i] = m; outbox.delete(tmp.id);
+      const el = state.open === m.chat_id && $('msgs').querySelector(`[data-id="${tmp.id}"]`);
+      if (el) { el.dataset.id = m.id; el.classList.remove('pending', 'failed'); el.onclick = null; const t = el.querySelector('.time'); if (t) t.textContent = hhmm(m.created_at); }
+      const c = state.chats.get(m.chat_id); if (c && c.last?.id === tmp.id) c.last = m;
+      saveMsgsCache(m.chat_id); renderChats(); saveChatsCache();
+      return;
+    }
+    if (!list.some((x) => x.id === m.id)) {
+      list.push(m);
+      if (state.open === m.chat_id) {
+        state.animId = m.id; appendMsg(m); state.animId = null; // анимация только у нового
+        if (m.sender_id !== state.me.id && m.kind !== 'system' && !document.hidden) sfx.receive();
+      }
+      saveMsgsCache(m.chat_id);
     }
   }
   if (state.open !== m.chat_id && m.sender_id !== state.me.id && m.kind !== 'system' && !document.hidden) sfx.receive();
   const c = state.chats.get(m.chat_id);
   if (c) {
-    const isNew = !c.last || m.id > c.last.id; // уже могло попасть в список при загрузке — не считаем второй раз
+    const isNew = !c.last || c.last.pending || m.pending || (typeof c.last.id === 'number' && m.id > c.last.id); // уже могло попасть в список при загрузке — не считаем второй раз
     if (isNew) c.last = m;
-    if (state.open === m.chat_id && !document.hidden) markRead(c); else if (isNew && m.sender_id !== state.me.id && m.kind !== 'system') c.unread++;
-    renderChats();
+    if (state.open === m.chat_id && !document.hidden) { if (!m.pending) markRead(c); } else if (isNew && m.sender_id !== state.me.id && m.kind !== 'system') c.unread++;
+    renderChats(); saveChatsCache();
   }
 }
-
 // файлы и фото
 $('attachBtn').onclick = () => $('fileInput').click();
 $('fileInput').onchange = async () => {
@@ -1043,6 +1147,7 @@ $('pLogout').onclick = async () => {
   try { const sub = await (await navigator.serviceWorker?.ready)?.pushManager?.getSubscription(); if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); } } catch {}
   try { if (state.v3 && state.devOk) await sb.from('devices').delete().eq('id', deviceId()); } catch {}
   try { localStorage.removeItem('kc-me'); } catch {}
+  clearCaches();
   await sb.auth.signOut(); location.reload();
 };
 

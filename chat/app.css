@@ -323,3 +323,10 @@ html[data-font="s"] .m { font-size: 14.5px; } html[data-font="l"] .m { font-size
 @media (min-width: 560px) { .admStats { grid-template-columns: repeat(4, 1fr); } }
 .bannedIc { display: grid; place-items: center; background: linear-gradient(135deg, #ff5b6e, #ff8a5b); box-shadow: 0 16px 40px rgba(255, 91, 110, .45); }
 .bannedIc svg.ic { width: 46px; height: 46px; color: #fff; }
+
+/* отправка без ожидания: «отправляется» и «не отправлено» */
+.m.pending { opacity: .72; }
+.m.pending .time::after { content: ''; display: inline-block; width: 9px; height: 9px; margin-left: 4px; border-radius: 50%; border: 1.6px solid currentColor; border-top-color: transparent; animation: spin .9s linear infinite; vertical-align: -1px; }
+.m.failed { opacity: 1; box-shadow: 0 0 0 2px var(--red) inset; cursor: pointer; }
+.m.failed .time::after { content: 'не отправлено — нажмите'; animation: none; border: 0; width: auto; height: auto; margin-left: 6px; color: #fff; font-weight: 700; }
+.msgs .loading { margin: 22vh auto 0; }
