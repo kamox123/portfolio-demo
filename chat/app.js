@@ -64,6 +64,7 @@ const P = {
   tick: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
   ticks: '<path d="M2.5 12.5L7 17 16.5 7.5M11 16l1 1 9.5-9.5"/>',
   megaphone: '<path d="M3 10v4a1 1 0 0 0 1 1h3l8 5V4L7 9H4a1 1 0 0 0-1 1zM18.5 9a4 4 0 0 1 0 6"/>',
+  mute: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4zM16 9.5l5 5M21 9.5l-5 5"/>',
   wifi: '<path d="M5 12.5a10 10 0 0 1 14 0M8 15.5a6 6 0 0 1 8 0M2 9.3a14.5 14.5 0 0 1 20 0"/><circle cx="12" cy="19" r="1" fill="currentColor"/>',
   shield: '<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z"/><path d="M8.8 12l2.2 2.2 4.2-4.4"/>',
   devices: '<rect x="2.5" y="5" width="13" height="10" rx="2"/><path d="M5.5 19h7"/><rect x="16.5" y="8.5" width="5.5" height="11" rx="1.6"/>',
@@ -85,7 +86,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '2.6';
+const APP_VER = '2.7';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -332,17 +333,23 @@ function previewHtml(m) {
 }
 let chatsT = 0;
 function renderChats() { if (!chatsT) chatsT = setTimeout(() => { chatsT = 0; renderChatsNow(); }, 16); } // пачку обновлений рисуем одним разом
+// закреплённые чаты и чаты «без звука» — настройка этого телефона (как в Telegram у каждого своя)
+const chatPrefs = (() => { try { return JSON.parse(localStorage.getItem('kc-chatprefs') || '{}'); } catch { return {}; } })();
+const cp = (id) => (chatPrefs[id] ||= {});
+function saveChatPrefs() { try { localStorage.setItem('kc-chatprefs', JSON.stringify(chatPrefs)); } catch {} }
+const isMuted = (id) => !!chatPrefs[id]?.mute;
 function renderChatsNow() {
-  const list = [...state.chats.values()].sort((a, b) => new Date(b.last?.created_at || b.last_message_at) - new Date(a.last?.created_at || a.last_message_at));
+  const when = (c) => new Date(c.last?.created_at || c.last_message_at);
+  const list = [...state.chats.values()].sort((a, b) => (+!!chatPrefs[b.id]?.pin - +!!chatPrefs[a.id]?.pin) || (chatPrefs[a.id]?.pin && chatPrefs[b.id]?.pin ? chatPrefs[a.id].pin - chatPrefs[b.id].pin : 0) || when(b) - when(a));
   $('emptyChats').classList.toggle('hidden', list.length > 0);
   $('chatList').innerHTML = list.map((c) => `
-    <button class="item" data-chat="${c.id}">
+    <button class="item ${chatPrefs[c.id]?.pin ? 'pinned' : ''}" data-chat="${c.id}">
       ${chatAvatar(c, '', true)}
-      <div class="mid"><div class="t">${esc(chatName(c))}</div><div class="s">${previewHtml(c.last)}</div></div>
-      <div class="side">${c.last ? listTime(c.last.created_at) : ''}${c.unread ? `<span class="badge">${c.unread}</span>` : ''}</div>
+      <div class="mid"><div class="t">${isChannel(c) ? ic('megaphone') : ''}${esc(chatName(c))}${isMuted(c.id) ? ic('mute') : ''}</div><div class="s">${previewHtml(c.last)}</div></div>
+      <div class="side">${c.last ? listTime(c.last.created_at) : ''}${c.unread ? `<span class="badge ${isMuted(c.id) ? 'muted' : ''}">${c.unread}</span>` : chatPrefs[c.id]?.pin ? `<span class="pinMark">${ic('pin')}</span>` : ''}</div>
     </button>`).join('');
-  $('chatList').querySelectorAll('[data-chat]').forEach((b) => (b.onclick = () => openChat(b.dataset.chat)));
-  const total = list.reduce((s, c) => s + c.unread, 0);
+  $('chatList').querySelectorAll('[data-chat]').forEach((b) => (b.onclick = () => { if (b.dataset.lp) { delete b.dataset.lp; return; } openChat(b.dataset.chat); }));
+  const total = list.filter((c) => !isMuted(c.id)).reduce((s, c) => s + c.unread, 0);
   document.title = total ? `(${total}) KAMOX Chat` : 'KAMOX Chat';
   if (navigator.setAppBadge) (total ? navigator.setAppBadge(total) : navigator.clearAppBadge()).catch(() => {});
 }
@@ -619,12 +626,12 @@ function addMsg(m) {
       list.push(m);
       if (state.open === m.chat_id) {
         state.animId = m.id; appendMsg(m); state.animId = null; // анимация только у нового
-        if (m.sender_id !== state.me.id && m.kind !== 'system' && !document.hidden) sfx.receive();
+        if (m.sender_id !== state.me.id && m.kind !== 'system' && !document.hidden && !isMuted(m.chat_id)) sfx.receive();
       }
       saveMsgsCache(m.chat_id);
     }
   }
-  if (state.open !== m.chat_id && m.sender_id !== state.me.id && m.kind !== 'system' && !document.hidden) sfx.receive();
+  if (state.open !== m.chat_id && m.sender_id !== state.me.id && m.kind !== 'system' && !document.hidden && !isMuted(m.chat_id)) sfx.receive();
   const c = state.chats.get(m.chat_id);
   if (c) {
     const isNew = !c.last || c.last.pending || m.pending || (typeof c.last.id === 'number' && m.id > c.last.id); // уже могло попасть в список при загрузке — не считаем второй раз
@@ -1505,6 +1512,49 @@ function onChatUpdate(n) {
   renderChats();
 }
 
+// ---------- меню чата в списке: закрепить, без звука, выйти/удалить ----------
+let listMenuChat = null;
+function openChatMenu(id) {
+  const c = state.chats.get(id); if (!c) return;
+  listMenuChat = c;
+  const pinned = !!chatPrefs[id]?.pin, muted = isMuted(id);
+  const leave = isChannel(c) ? (c.myRole === 'owner' ? null : 'Отписаться от канала') : c.is_group ? 'Выйти из группы' : 'Удалить чат у себя';
+  $('chatMenuTitle').textContent = chatName(c);
+  $('chatMenuList').innerHTML = [
+    ['pin', pinned ? 'Открепить' : 'Закрепить наверху', 'pin'],
+    ['mute', muted ? 'Включить звук' : 'Без звука', 'mute'],
+    c.unread ? ['read', 'Отметить прочитанным', 'check'] : null,
+    leave ? ['leave', leave, 'trash'] : null,
+  ].filter(Boolean).map(([a, t, i]) => `<button class="mItem ${a === 'leave' ? 'danger' : ''}" data-ca="${a}">${ic(i)}<span>${t}</span></button>`).join('');
+  $('chatMenu').classList.remove('hidden'); VIBRO(15);
+}
+$('chatMenu').onclick = (e) => { if (e.target === $('chatMenu')) $('chatMenu').classList.add('hidden'); };
+$('chatMenuList').onclick = async (e) => {
+  const b = e.target.closest('[data-ca]'); const c = listMenuChat; if (!b || !c) return;
+  $('chatMenu').classList.add('hidden');
+  const a = b.dataset.ca;
+  if (a === 'pin') { cp(c.id).pin = chatPrefs[c.id].pin ? 0 : Date.now(); }
+  else if (a === 'mute') { cp(c.id).mute = !chatPrefs[c.id].mute; toast(chatPrefs[c.id].mute ? 'Чат без звука' : 'Звук включён'); }
+  else if (a === 'read') { markRead(c); }
+  else if (a === 'leave') {
+    if (!confirm(b.innerText.trim() + ' «' + chatName(c) + '»?')) return;
+    // личный чат «удаляется у себя» так же — выходим из него; собеседник переписку сохранит
+    const { error } = await sb.from('chat_members').delete().eq('chat_id', c.id).eq('user_id', state.me.id);
+    if (error) return toast('Ошибка: ' + error.message);
+    state.chats.delete(c.id); saveChatsCache(); toast('Готово');
+  }
+  saveChatPrefs(); renderChats();
+};
+// долгое нажатие на чат в списке (на компьютере — правая кнопка)
+(function wireChatList() {
+  const box = $('chatList'); let t = null, sx = 0, sy = 0, el = null;
+  box.addEventListener('contextmenu', (e) => { const b = e.target.closest('[data-chat]'); if (b) { e.preventDefault(); openChatMenu(b.dataset.chat); } });
+  box.addEventListener('touchstart', (e) => { el = e.target.closest('[data-chat]'); if (!el) return; sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+    t = setTimeout(() => { t = null; if (el) { el.dataset.lp = '1'; openChatMenu(el.dataset.chat); } }, 480); }, { passive: true });
+  box.addEventListener('touchmove', (e) => { if (Math.abs(e.touches[0].clientX - sx) > 8 || Math.abs(e.touches[0].clientY - sy) > 8) { clearTimeout(t); t = null; } }, { passive: true });
+  box.addEventListener('touchend', () => { clearTimeout(t); t = null; });
+})();
+
 // ---------- мгновенная доставка ----------
 function subscribe() {
   let ch = sb.channel('db')
@@ -1572,6 +1622,7 @@ function notifyLocal(m) {
   const c = state.chats.get(m.chat_id), p = state.profiles.get(m.sender_id);
   const title = c?.is_group ? `${c.title}: ${p?.display_name}` : p?.display_name || 'Новое сообщение';
   const text = previewParts(m)[1];
+  if (isMuted(m.chat_id)) return; // чат «без звука»
   VIBRO(40);
   if (document.hidden) return; // свёрнутое приложение получит пуш от сервера
   if (state.open !== m.chat_id) toast(`${title}: ${text}`);

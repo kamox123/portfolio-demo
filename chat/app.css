@@ -385,3 +385,10 @@ html[data-font="s"] .m { font-size: 14.5px; } html[data-font="l"] .m { font-size
 #fwdList .item.sel .check { background: var(--grad); border-color: transparent; }
 .fwdOpt { margin-top: 0; } #fwdSend:disabled { opacity: .45; }
 .item .t svg.ic { display: inline-block; }
+
+/* закреплённые и «без звука» чаты */
+.item.pinned { background: rgba(255, 255, 255, .04); }
+.item .t svg.ic + span, .item .t > svg.ic:last-child { margin-left: 4px; }
+.item .t > svg.ic:last-child { color: var(--dim); }
+.badge.muted { background: rgba(255, 255, 255, .25) !important; box-shadow: none !important; }
+.pinMark svg.ic { width: 15px; height: 15px; color: var(--dim); }
