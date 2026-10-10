@@ -98,6 +98,7 @@
   </header>
   <div class="pad">
     <label class="search glass"><i data-ic="search"></i><input id="userSearch" placeholder="Поиск по нику" autocapitalize="none" spellcheck="false"></label>
+    <button class="rowBtn glass" id="channelMode"><span class="rowIc orange"><i data-ic="megaphone"></i></span><span class="grow">Создать канал</span><i data-ic="next" class="dim"></i></button>
     <button class="rowBtn glass" id="groupMode"><span class="rowIc"><i data-ic="users"></i></span><span class="grow">Создать группу</span><i data-ic="next" class="dim"></i></button>
     <input id="groupTitle" class="field glass hidden" placeholder="Название группы" maxlength="40">
     <div id="picked" class="picked"></div>
@@ -110,10 +111,16 @@
   <header class="top glass">
     <button class="icon" data-back aria-label="Назад"><i data-ic="back"></i></button>
     <div class="chatHead" id="chatHead"></div>
+    <button class="icon" id="chatSearchBtn" aria-label="Поиск по чату"><i data-ic="search"></i></button>
     <button class="icon" id="callAudio" aria-label="Аудиозвонок"><i data-ic="phone"></i></button>
     <button class="icon" id="callVideo" aria-label="Видеозвонок"><i data-ic="video"></i></button>
   </header>
+  <div class="searchBar glass hidden" id="searchBar"><i data-ic="search"></i><input id="chatSearch" placeholder="Поиск по сообщениям" autocomplete="off"><button class="icon" id="searchClose" aria-label="Закрыть"><i data-ic="close"></i></button></div>
+  <div class="searchResults glass hidden" id="searchResults"></div>
+  <div class="pinBar glass hidden" id="pinBar"><span class="pinIc"><i data-ic="pin"></i></span><div class="mid"><b>Закреплённое сообщение</b><span id="pinText"></span></div><button class="icon" id="pinClose" aria-label="Открепить"><i data-ic="close"></i></button></div>
   <div id="msgs" class="msgs"></div>
+  <div class="replyBar glass hidden" id="replyBar"><span class="rbIc" id="rbIc"></span><div class="mid"><b id="rbName"></b><span id="rbText"></span></div><button class="icon" id="rbClose" aria-label="Отменить"><i data-ic="close"></i></button></div>
+  <div class="subBar glass hidden" id="subBar"><span class="dim small">Вы подписаны на канал</span><button class="chip" id="unsubBtn">Отписаться</button></div>
   <div class="composer" id="composer">
     <button class="icon glass" id="attachBtn" aria-label="Прикрепить"><i data-ic="clip"></i></button>
     <input type="file" id="fileInput" hidden>
@@ -315,6 +322,24 @@
     <button class="round sendRound" id="noteSend" aria-label="Отправить"><i data-ic="send"></i></button>
   </div>
 </div>
+
+<!-- Меню сообщения -->
+<div class="sheetBg hidden" id="msgMenu"><div class="sheet glass"><div class="menuReacts" id="menuReacts"></div><div id="menuList"></div></div></div>
+<!-- Переслать -->
+<div class="sheetBg hidden" id="fwdSheet"><div class="sheet glass tall"><div class="sheetHead"><b>Переслать в…</b><button class="icon" id="fwdClose" aria-label="Закрыть"><i data-ic="close"></i></button></div><div class="list" id="fwdList"></div></div></div>
+<!-- Новый канал -->
+<div class="sheetBg hidden" id="channelSheet"><div class="sheet glass"><div class="sheetHead"><b>Новый канал</b><button class="icon" id="chClose" aria-label="Закрыть"><i data-ic="close"></i></button></div>
+  <p class="dim small cardNote">В канале пишете только вы, остальные читают и ставят реакции. Подписаться можно по ссылке или через поиск.</p>
+  <input class="field" id="chTitle" maxlength="60" placeholder="Название канала">
+  <label class="field handleField">kamox123.github.io/chat#+<input id="chHandle" maxlength="32" placeholder="ssylka_kanala" autocapitalize="none" spellcheck="false"></label>
+  <textarea class="field" id="chAbout" rows="2" maxlength="300" placeholder="Описание (необязательно)"></textarea>
+  <p class="err" id="chErr"></p>
+  <button class="btn" id="chCreate">Создать канал</button></div></div>
+<!-- Карточка канала -->
+<div class="sheetBg hidden" id="chPreview"><div class="sheet glass center">
+  <button class="icon sheetX" id="cpClose" aria-label="Закрыть"><i data-ic="close"></i></button>
+  <div class="bigAvatar" id="cpAvatar"></div><h3 id="cpTitle"></h3><p class="muted small" id="cpHandle"></p><p id="cpAbout" class="cpAbout"></p>
+  <button class="btn" id="cpJoin">Подписаться</button><button class="chip" id="cpLink"><i data-ic="link"></i>Скопировать ссылку</button></div></div>
 
 <div id="viewer" class="viewer hidden"><img id="viewerImg" alt=""></div>
 <div id="toast" class="toast glass hidden"></div>
