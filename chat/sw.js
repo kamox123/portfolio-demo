@@ -1,5 +1,5 @@
 // Фоновая часть приложения: работа без сети и уведомления, когда приложение закрыто
-const CACHE = 'kamox-chat-v22';
+const CACHE = 'kamox-chat-v23';
 const SHELL = ['./', 'index.html', 'app.css', 'app.js', 'supabase.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-180.png', 'badge-96.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
@@ -9,9 +9,14 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const u = new URL(e.request.url);
   if (e.request.method !== 'GET' || u.origin !== location.origin || u.pathname.endsWith('.apk')) return;
-  // сначала сеть (обновления приходят сразу), без сети — из памяти
-  e.respondWith(fetch(e.request).then((r) => { const copy = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return r; })
-    .catch(() => caches.match(e.request, { ignoreSearch: true }).then((r) => r || caches.match('index.html'))));
+  // сразу из памяти телефона (мгновенный запуск даже при плохой сети), а свежую версию тихо скачиваем в фоне —
+  // она откроется при следующем запуске. Новая версия приложения (новый CACHE) скачивается целиком при установке.
+  e.respondWith(caches.open(CACHE).then(async (c) => {
+    const hit = await c.match(e.request, { ignoreSearch: true });
+    const net = fetch(e.request).then((r) => { if (r.ok) c.put(e.request, r.clone()); return r; });
+    if (hit) { e.waitUntil(net.catch(() => {})); return hit; }
+    return net.catch(async () => (await c.match('index.html')) || Response.error());
+  }));
 });
 
 // пуш от сервера: новое сообщение или входящий звонок

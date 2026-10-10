@@ -63,7 +63,7 @@ function paintIcons(root = document) { root.querySelectorAll('i[data-ic]').forEa
 paintIcons();
 
 // ---------- настройки (хранятся на этом устройстве) ----------
-const APP_VER = '2.0';
+const APP_VER = '2.1';
 const THEMES = [['violet', 'Неон', '#7b61ff', '#ff5aa8'], ['ocean', 'Океан', '#2fd3f5', '#6366f1'], ['sunset', 'Закат', '#ff8a3d', '#e0408f'], ['mint', 'Мята', '#34d399', '#0ea5e9'], ['ruby', 'Рубин', '#ff3d5a', '#8b1d6b']];
 const prefs = Object.assign({ theme: 'violet', anim: true, font: 'm', sound: true, vibro: true }, (() => { try { return JSON.parse(localStorage.getItem('kc-prefs')) || {}; } catch { return {}; } })());
 function savePrefs() { try { localStorage.setItem('kc-prefs', JSON.stringify(prefs)); } catch {} applyPrefs(); }
@@ -197,8 +197,7 @@ async function start(session) {
   state.history = [];
   show('sChats', false);
   loadChatsCache(); // мгновенно — из памяти телефона
-  await loadChats();
-  await loadV3();
+  await Promise.all([loadChats(), loadV3()]); // одновременно, а не друг за другом
   subscribe();
   listenCalls();
   heartbeat(); setInterval(heartbeat, 60000);
@@ -220,7 +219,14 @@ function netUp() { clearTimeout(netTimer); $('netBar').classList.add('hidden'); 
 window.addEventListener('offline', netDown);
 window.addEventListener('online', () => { if (state.me) { loadChats(); refreshMe(); } });
 function paintMe() { $('meBtn').innerHTML = avatarHtml(state.me.display_name, state.me.avatar_path, 'sm'); }
-function heartbeat() { if (state.me && !document.hidden) { deviceBeat(); checkBanned(); } if (state.me && !document.hidden && state.me.show_last_seen !== false) sb.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', state.me.id).then(() => {}); }
+// раз в минуту: «я в сети» и заодно проверка блокировки — одним запросом; плюс отметка устройства
+function heartbeat() {
+  if (!state.me || document.hidden) return;
+  deviceBeat();
+  if (state.me.show_last_seen === false) return checkBanned();
+  sb.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', state.me.id).select('banned').maybeSingle()
+    .then(({ data }) => { if (data?.banned) showBanned(); });
+}
 
 // ---------- список чатов ----------
 let chatsLoading = null;
@@ -295,7 +301,9 @@ function previewHtml(m) {
   const [icon, text] = previewParts(m);
   return `${m && m.sender_id === state.me.id && m.kind !== 'system' ? '<span class="dim">Вы:</span>' : ''}${icon ? ic(icon) : ''}<span class="grow" style="overflow:hidden;text-overflow:ellipsis">${esc(text)}</span>`;
 }
-function renderChats() {
+let chatsT = 0;
+function renderChats() { if (!chatsT) chatsT = setTimeout(() => { chatsT = 0; renderChatsNow(); }, 16); } // пачку обновлений рисуем одним разом
+function renderChatsNow() {
   const list = [...state.chats.values()].sort((a, b) => new Date(b.last?.created_at || b.last_message_at) - new Date(a.last?.created_at || a.last_message_at));
   $('emptyChats').classList.toggle('hidden', list.length > 0);
   $('chatList').innerHTML = list.map((c) => `
@@ -398,6 +406,13 @@ async function openChat(id, replace = false) {
   saveMsgsCache(id);
   markRead(c);
 }
+// новые сообщения открытого чата после последнего известного (после сна телефона или обрыва связи)
+async function fetchNewer(id) {
+  const list = state.msgs.get(id) || [], last = [...list].reverse().find((m) => typeof m.id === 'number');
+  if (!last) return;
+  const { data } = await sb.from('messages').select('*').eq('chat_id', id).gt('id', last.id).order('id', { ascending: true }).limit(100);
+  (data || []).forEach(addMsg);
+}
 function markRead(c) {
   c.unread = 0; c.lastRead = new Date().toISOString();
   sb.from('chat_members').update({ last_read_at: c.lastRead }).eq('chat_id', c.id).eq('user_id', state.me.id).then(() => {});
@@ -460,7 +475,7 @@ function msgHtml(m, c) {
   const who = c?.is_group && !mine ? `<div class="who">${esc(p?.display_name || '?')}</div>` : '';
   const time = `<span class="time">${hhmm(m.created_at)}</span>`;
   let inner;
-  if (m.kind === 'image') return `<div class="m media ${mine ? 'me' : ''} ${m.id === state.animId ? 'new' : ''}">${who}<img class="ph" data-img="${esc(m.file_path)}" alt="">${time}</div>`;
+  if (m.kind === 'image') return `<div class="m media ${mine ? 'me' : ''} ${m.id === state.animId ? 'new' : ''}">${who}<img class="ph" loading="lazy" decoding="async" data-img="${esc(m.file_path)}" alt="">${time}</div>`;
   if (isNote(m)) return `<div class="m note ${mine ? 'me' : ''} ${m.id === state.animId ? 'new' : ''}">${who}<div class="vnote" data-vnote="${esc(m.file_path)}" data-dur="${m.duration || 0}"><video playsinline preload="metadata"></video><svg class="vring" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48"/></svg><span class="vplay">${ic('play')}</span><span class="vdur">${fmtDur(m.duration || 0)}</span></div>${time}</div>`;
   if (m.kind === 'file') inner = `<a class="file" href="#" data-file="${esc(m.file_path)}" data-name="${esc(m.file_name)}"><span class="fi">${ic('file')}</span><span><b>${esc(m.file_name)}</b><br><span class="small" style="opacity:.75">${fmtSize(m.file_size || 0)}</span></span></a>`;
   else if (m.kind === 'voice') inner = `<div class="voice" data-voice="${esc(m.file_path)}" data-dur="${m.duration || 0}"><button class="play">${ic('play')}</button><div class="bar">${waveBars(m.id)}</div><span class="dur">${fmtDur(m.duration || 0)}</span></div>`;
@@ -753,14 +768,15 @@ const BANNED_TEXT = 'Ваш аккаунт заблокирован админи
 const PRIVACY_TEXT = (m) => /группы/.test(m) ? 'Этот пользователь ограничил, кто может добавлять его в группы' : 'Этот пользователь ограничил, кто может ему писать';
 const errText = (e) => (/privacy/.test(e?.message || '') ? PRIVACY_TEXT(e.message) : 'Ошибка: ' + (e?.message || e));
 async function loadV3() {
-  const { error } = await sb.from('contacts').select('contact').limit(1);
-  state.v3 = !error;
+  // контакты, чёрный список и права админа — одновременно; ошибка у контактов = база ещё без шага 3
+  const [c, b, adm] = await Promise.all([sb.from('contacts').select('contact').eq('owner', state.me.id),
+    sb.from('blocks').select('blocked').eq('owner', state.me.id), sb.rpc('is_admin')]);
+  state.v3 = !c.error;
   if (!state.v3) return;
-  const [c, b] = await Promise.all([sb.from('contacts').select('contact').eq('owner', state.me.id), sb.from('blocks').select('blocked').eq('owner', state.me.id)]);
   state.contacts = new Set((c.data || []).map((x) => x.contact));
   state.blocks = new Set((b.data || []).map((x) => x.blocked));
+  state.admin = adm.data === true; $('pAdmin').classList.toggle('hidden', !state.admin);
   registerDevice();
-  checkAdmin();
 }
 function copyText(text, done = 'Ссылка скопирована') {
   navigator.clipboard?.writeText(text).then(() => toast(done)).catch(() => prompt('Скопируйте:', text)) ?? prompt('Скопируйте:', text);
@@ -954,12 +970,6 @@ $('pLink').onclick = () => copyText(LINK(state.me.username), 'Ссылка на 
 
 // ---------- админ-панель (только служебные сведения: кто, когда, какие группы; тексты сообщений база не отдаёт) ----------
 let adminTab = 'users', adminData = { users: [], groups: [] };
-async function checkAdmin() {
-  if (!state.v3) return;
-  const { data } = await sb.rpc('is_admin');
-  state.admin = data === true;
-  $('pAdmin').classList.toggle('hidden', !state.admin);
-}
 $('pAdmin').onclick = () => { show('sAdmin'); loadAdmin(); };
 async function loadAdmin() {
   $('admList').innerHTML = '<p class="dim small cardNote">Загружаю…</p>';
@@ -1038,7 +1048,13 @@ function subscribe() {
       if (st === 'SUBSCRIBED') { netUp(); if (state.wasDown) { state.wasDown = false; loadChats(); if (state.open) openChat(state.open, true); } }
       else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT' || st === 'CLOSED') { state.wasDown = true; netDown(); }
     });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { heartbeat(); const c = state.chats.get(state.open); if (c) markRead(c); } });
+  let hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { hiddenAt = Date.now(); return; }
+    heartbeat(); const c = state.chats.get(state.open); if (c) markRead(c);
+    // приложение было свёрнуто дольше 20 с — телефон мог усыпить связь: догружаем то, что могли пропустить
+    if (hiddenAt && Date.now() - hiddenAt > 20000) { loadChats(); if (state.open) fetchNewer(state.open); }
+  });
 }
 // ---------- звуки (синтезируются на лету, без файлов) ----------
 let audioCtx;
